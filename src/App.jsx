@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Help from './pages/Help';
 import Favourites from './pages/Favourites';
 import AdviceJournal from './pages/AdviceJournal';
+import Footer from './components/Footer';
 
 function App() {
     return (
@@ -14,6 +15,7 @@ function App() {
                 <Route path="/favourites" element={<Favourites />} />
                 <Route path="/journal" element={<AdviceJournal />} />
             </Routes>
+            <Footer />
         </Router>
     );
 }

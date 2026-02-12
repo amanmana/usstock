@@ -37,17 +37,10 @@ function Dashboard() {
   const [selectedStock, setSelectedStock] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [dataMode, setDataMode] = useState('hybrid');
-  const [visitorCount, setVisitorCount] = useState(0);
   const [systemStats, setSystemStats] = useState(null);
   const [activeTab, setActiveTab] = useState('rebound'); // 'rebound' or 'momentum'
 
   useEffect(() => {
-    // Fetch unique visitors
-    fetch('/.netlify/functions/visitors')
-      .then(res => res.json())
-      .then(data => setVisitorCount(data.count || 0))
-      .catch(err => console.error("Error fetching visitor count:", err));
-
     // Fetch system status & handle auto-mode-switch
     fetch('/.netlify/functions/systemStatus')
       .then(res => res.json())
@@ -510,39 +503,6 @@ function Dashboard() {
           />
         )}
       </div>
-
-      {/* Footer / Visitor Counter */}
-      <footer className="fixed bottom-0 left-0 w-full bg-background/80 backdrop-blur-md border-t border-border py-2 px-6 flex justify-between items-center z-40">
-        <div className="flex items-center gap-6">
-          <div className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">
-            &copy; 2026 Bursa Rebound Screener
-          </div>
-          <Link
-            to="/favourites"
-            className="flex items-center gap-1.5 text-[10px] text-red-500 hover:text-white uppercase tracking-widest font-bold border-b border-red-500/30 hover:border-white transition-all"
-          >
-            <Heart className="w-3 h-3 fill-red-500" />
-            Kegemaran Saya
-          </Link>
-          <Link
-            to="/help"
-            className="text-[10px] text-primary hover:text-white uppercase tracking-widest font-bold border-b border-primary/30 hover:border-white transition-all"
-          >
-            Help / Panduan
-          </Link>
-          <Link
-            to="/journal"
-            className="flex items-center gap-1.5 text-[10px] text-purple-400 hover:text-white uppercase tracking-widest font-bold border-b border-purple-500/30 hover:border-white transition-all"
-          >
-            <Book className="w-3 h-3" />
-            Buku Strategi
-          </Link>
-        </div>
-        <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold bg-white/5 px-3 py-1 rounded-full border border-white/5">
-          <Users className="w-3 h-3 text-primary" />
-          <span>PELAWAT UNIK: <span className="text-white">{(visitorCount || 0).toLocaleString()}</span></span>
-        </div>
-      </footer>
 
       {/* On-demand Analysis Loader */}
       {isAnalyzing && (
