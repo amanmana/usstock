@@ -13,7 +13,8 @@ import {
   Briefcase,
   TrendingDown,
   Eye,
-  Activity
+  Activity,
+  Book
 } from 'lucide-react';
 import { useScreener } from '../hooks/useScreener';
 import { useSync } from '../hooks/useSync';
@@ -528,6 +529,13 @@ function Dashboard() {
             className="text-[10px] text-primary hover:text-white uppercase tracking-widest font-bold border-b border-primary/30 hover:border-white transition-all"
           >
             Help / Panduan
+          </Link>
+          <Link
+            to="/journal"
+            className="flex items-center gap-1.5 text-[10px] text-purple-400 hover:text-white uppercase tracking-widest font-bold border-b border-purple-500/30 hover:border-white transition-all"
+          >
+            <Book className="w-3 h-3" />
+            Buku Strategi
           </Link>
         </div>
         <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold bg-white/5 px-3 py-1 rounded-full border border-white/5">
