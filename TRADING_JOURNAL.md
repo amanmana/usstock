@@ -1,6 +1,6 @@
 # 📔 Jurnal Strategi & Falsafah Dagangan (B.R.S)
 
-Dokumen ini mengumpulkan nasihat dan strategi yang kita bincangkan sepanjang pembangunan sistem ini. Anda boleh simpan ini (Print to PDF) untuk rujukan masa hadapan.
+Dokumen ini mengumpulkan nasihat, strategi, dan falsafah yang kita bincangkan sepanjang pembangunan sistem ini. Ia adalah "living document" yang boleh anda rujuk untuk kekal disiplin.
 
 ---
 
@@ -10,41 +10,48 @@ Dokumen ini mengumpulkan nasihat dan strategi yang kita bincangkan sepanjang pem
 
 ---
 
-## 🚦 2. Memahami Dua Jenis "Exit Levels"
-Sistem anda membekalkan dua perspektif berbeza:
-
-*   **Level Sistem (Technical/Market Psychology):**
-    *   **Apa itu:** Paras Support/Resistance yang dikira dari data teknikal harian/mingguan.
-    *   **Kegunaan:** Menunjukkan di mana "Tembok" pasaran berada.
-*   **Level Peribadi / My Plan (Risk Management):**
-    *   **Apa itu:** Paras Stop Loss dan Target Price yang dikira berdasarkan toleransi risiko anda sendiri dalam kalkulator.
-    *   **Kegunaan:** Menjaga kesihatan akaun bank anda. **Sentiasa utamakan ini.**
+## 🟢 2. Strategi Rebound (Buy Low, Sell High)
+Ciri-ciri saham rebound yang berkualiti:
+*   **Skor Rebound:** Cari 7.0 ke atas. Ini bermakna saham sudah "sejuk" dan sedia untuk melantun (pullback sihat).
+*   **RSI:** Pastikan antara 35-45. Elakkan RSI bawah 25 (saham sedang "freefall") kecuali anda sangat mahir.
+*   **Timing:** Set Buy Limit pada harga **Support** untuk risiko terendah.
 
 ---
 
-## 📈 3. Dilema: TP vs Nasihat HOLD
-Apabila harga sudah mencapai Target Price (TP) anda, tetapi sistem masih berkata **HOLD / KEKAL PEGANG**, gunakan strategi **"Win-Win"**:
+## 🚀 3. Strategi Momentum (Buy High, Sell Higher)
+Ciri-ciri saham momentum yang meletup:
+*   **Skor Momentum:** Cari 8.0 ke atas. Ini adalah saham yang paling "hot" di pasaran.
+*   **Volume:** Pastikan volume harian melebihi 2x ganda purata volume (Avg Vol). Ini bukti kehadiran "Shark".
+*   **Breakout:** Masuk bila harga pecah Resistance 1 (R1) dengan volume tinggi.
+
+---
+
+## 🐘 4. Trend Confirmation (3-Dot Alignment)
+Jangan lawan arus besar. Pastikan alignment MTF (Multi-Timeframe):
+*   **Weekly (Gajah):** Arah aliran besar mingguan. Mesti Hijau untuk ketenangan.
+*   **Daily (Harimau):** Trend utama harian. Menentukan arah harga jangka pendek.
+*   **15M (Kancil):** Timing kemasukan. Guna untuk cari "dip" atau breakout pantas.
+*   **Tip:** Peluang paling "solid" adalah bila anda nampak **3/3 Hijau**.
+
+---
+
+## 🚦 5. Memahami "Exit Levels" & TP Dilema
+Sistem membekalkan dua perspektif berbeza:
+
+*   **Level Sistem (Market Psychology):** Paras S&R teknikal. Tembok pasaran.
+*   **Level Peribadi / My Plan (Personal Risk):** Paras keselamatan akaun anda. **Utamakan ini.**
 
 ### Strategi Jual Separuh (50/50)
-1.  **Jual 50% unit saham** anda pada harga TP asal. Anda sudah "Lock Profit" dan modal anda sudah lebih selamat.
-2.  **Baki 50% lagi**, biarkan ia "Ride the Trend" selagi nasihat sistem masih Hijau.
-3.  **Trailing Stop:** Naikkan harga Stop Loss peribadi anda ke paras yang lebih tinggi (biasanya bawah sedikit dari harga semasa). Jika harga berpatah balik, anda tetap exit dalam keadaan untung.
+Jika harga sampai TP Peribadi tapi sistem kata **HOLD**:
+1.  **Jual 50% unit** untuk kunci profit.
+2.  **Baki 50% lagi**, biarkan "Ride" selagi sistem masih Hijau.
+3.  **Trailing Stop:** Naikkan harga Stop Loss peribadi untuk lindungi keuntungan baki saham.
 
 ---
 
-## 🎯 4. Membaca RR Ratio (Ganjaran vs Risiko)
-*   **RR 2.0+ (Zon A+):** Potensi untung 2x ganda dari risiko. Ini adalah dagangan kualiti tinggi.
-*   **RR 1.0 - 1.5 (Sederhana):** Harapkan kenaikan teknikal atau fundamental yang kuat.
-*   **RR < 1.0 (High Risk):** Lebih baik cari peluang lain. Jangan paksa trade yang risikonya lebih besar dari untung.
-
----
-
-## 🐘 5. Penjajaran Trend (3-Dot Alignment)
-Jangan lawan arus besar.
-*   **Weekly (Gajah):** Arah aliran besar.
-*   **Daily (Harimau):** Trend utama harian.
-*   **15M (Kancil):** Timing kemasukan.
-*   **Nasihat:** Dagangan paling tenang adalah apabila ketiga-tiga elemen ini berada dalam **Alignment Hijau**.
+## 🎯 6. Membaca RR Ratio (Ganjaran vs Risiko)
+*   **RR 2.0+ (Zon A+):** Potensi untung 2x ganda dari risiko. Utamakan ini.
+*   **RR < 1.0 (High Risk):** Abaikan. Risiko rugi lebih besar dari untung potensi.
 
 ---
 
