@@ -1,0 +1,25 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Scheduled Function (Cron)
+# Runs daily at 18:10 MYT (UTC+8) -> 10:10 UTC
+[functions.scheduled-sync]
+  schedule = "10 10 * * *"
+
+# Redirects for Single Page App
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Enforce HTTPS (optional but good)
+[[redirects]]
+  from = "http://*"
+  to = "https://:splat"
+  status = 301
+  force = true
