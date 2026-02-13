@@ -306,9 +306,14 @@ export function StockModal({ stock, onClose, favouriteTickers = [], onToggleFavo
                                                     {pos && (
                                                         <div className="flex flex-col border-l border-white/10 pl-3">
                                                             <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest leading-none mb-1">Untung/Rugi</span>
-                                                            <span className={`font-black text-sm ${(intradayAnalysis.currentPrice - pos.entryPrice) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                {(intradayAnalysis.currentPrice - pos.entryPrice) >= 0 ? '+' : ''}RM {((intradayAnalysis.currentPrice - pos.entryPrice) * (pos.quantity || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                            </span>
+                                                            <div className="flex items-baseline gap-1.5">
+                                                                <span className={`font-black text-sm ${(intradayAnalysis.currentPrice - pos.entryPrice) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                    {(intradayAnalysis.currentPrice - pos.entryPrice) >= 0 ? '+' : ''}RM {((intradayAnalysis.currentPrice - pos.entryPrice) * (pos.quantity || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                </span>
+                                                                <span className={`text-[10px] font-bold opacity-80 ${(intradayAnalysis.currentPrice - pos.entryPrice) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                                    ({(intradayAnalysis.currentPrice - pos.entryPrice) >= 0 ? '+' : ''}{(((intradayAnalysis.currentPrice - pos.entryPrice) / pos.entryPrice) * 100).toFixed(1)}%)
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
