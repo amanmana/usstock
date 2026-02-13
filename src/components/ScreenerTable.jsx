@@ -36,7 +36,7 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
                     {data.map((stock) => {
                         if (!stock) return null;
                         const isFavourited = favouriteTickers.includes(stock.ticker);
-                        const isOwned = !!positions[stock.ticker];
+                        const isStockOwnedByUser = !!positions[stock.ticker];
 
                         // Recommendation Logic
                         const isMomentum = activeTab === 'momentum';
@@ -90,7 +90,7 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
                                         <div className="flex items-center gap-2 mt-0.5">
                                             <span className="text-[10px] text-gray-400 bg-white/5 px-1.5 py-0.5 rounded uppercase">{stock.fullName || stock.company || '-'}</span>
                                             <span className="text-[10px] text-gray-500 font-mono font-bold tracking-wider">{stock.ticker}</span>
-                                            {isOwned && (
+                                            {isStockOwnedByUser && (
                                                 <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 font-black animate-pulse">OWNED</span>
                                             )}
                                         </div>

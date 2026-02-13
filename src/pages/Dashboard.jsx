@@ -102,9 +102,9 @@ function Dashboard() {
       if (scoreNum < parseFloat(minScore)) return false;
 
       // 4. Reject Filter (Hide 'Sikat' / Pump unless Owned/Fav)
-      const isOwned = !!positions[stock.ticker];
+      const isStockOwnedByUser = !!positions[stock.ticker];
       const isFavourited = favouriteTickers.includes(stock.ticker);
-      if (stock.rejectReason && !isOwned && !isFavourited) return false;
+      if (stock.rejectReason && !isStockOwnedByUser && !isFavourited) return false;
 
       return true;
     })

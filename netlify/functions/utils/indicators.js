@@ -273,7 +273,7 @@ export function analyzeStock(stockData) {
     let rejectReason = null;
     if (ret5d > 35) rejectReason = 'Pump (5D > 35%)';
     if (avgVol20 < 150000) rejectReason = 'Low Liquidity (Vol < 150k)';
-    if (staleness > 10) rejectReason = 'DEBUG: Sikat Detected';
+    if (staleness > 30) rejectReason = 'Sikat (Flat Price Action)';
 
     const watchNext = [];
     if (ma20 && !reclaimedMA20 && closeToday < ma20) watchNext.push('Perhatikan harga pecah MA20');
