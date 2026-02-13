@@ -128,6 +128,7 @@ export function StockModal({ stock, onClose, favouriteTickers = [], onToggleFavo
     if (pos) {
         plAmount = stock.close - pos.entryPrice;
         plPercent = (plAmount / pos.entryPrice) * 100;
+        const totalPLRM = plAmount * (pos.quantity || 0);
 
         if (pos.strategy === 'rebound') {
             const target1 = stock.levels?.target1 || 0;
@@ -209,9 +210,14 @@ export function StockModal({ stock, onClose, favouriteTickers = [], onToggleFavo
                             </span>
                             {!pos && <span className="text-sm text-gray-400"> / 10</span>}
                             {pos && (
-                                <span className="text-xs bg-white/5 px-2 py-1 rounded border border-border text-gray-400 ml-2">
-                                    Entry: RM {pos.entryPrice.toFixed(3)}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-sm font-bold ${plAmount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {plAmount >= 0 ? '+' : ''}RM {(plAmount * (pos.quantity || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-xs bg-white/5 px-2 py-1 rounded border border-border text-gray-400">
+                                        Entry: RM {pos.entryPrice.toFixed(3)}
+                                    </span>
+                                </div>
                             )}
                             {stock.historyLabel && (
                                 <span className="text-[10px] bg-yellow-500/10 text-yellow-500 px-2 py-0.5 rounded border border-yellow-500/20 font-bold ml-2">
@@ -292,9 +298,19 @@ export function StockModal({ stock, onClose, favouriteTickers = [], onToggleFavo
                                             </div>
 
                                             <div className="flex items-center justify-between pt-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest">Harga Semasa</span>
-                                                    <span className="text-white font-black">RM {intradayAnalysis.currentPrice.toFixed(3)}</span>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest leading-none mb-1">Harga Semasa</span>
+                                                        <span className="text-white font-black text-sm">RM {intradayAnalysis.currentPrice.toFixed(3)}</span>
+                                                    </div>
+                                                    {pos && (
+                                                        <div className="flex flex-col border-l border-white/10 pl-3">
+                                                            <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest leading-none mb-1">Untung/Rugi</span>
+                                                            <span className={`font-black text-sm ${(intradayAnalysis.currentPrice - pos.entryPrice) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                                {(intradayAnalysis.currentPrice - pos.entryPrice) >= 0 ? '+' : ''}RM {((intradayAnalysis.currentPrice - pos.entryPrice) * (pos.quantity || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-1.5 opacity-60 group/time">
                                                     <Info className="w-3 h-3 group-hover/time:text-indigo-400 transition-colors" />
