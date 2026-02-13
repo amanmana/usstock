@@ -109,17 +109,17 @@ const SOP = () => {
                                 <StepNumber
                                     number="1"
                                     title="Monitor Lampu Isyarat"
-                                    desc="Lihat Traffic Lights (15m, 1D, 1W). Jika 3/3 Hijau, trend sangat kuat. Jika Lampu 15m Merah, bersedia untuk pusingan profit taking."
+                                    desc="Lihat Traffic Lights (15m, 1D, 1W). Jika 3/3 Hijau, trend sangat kuat. Jika Lampu 15m Merah, harga telah bocor paras sokongan 4-jam—bersedia untuk strategi 'Lock Profit'."
                                 />
                                 <StepNumber
                                     number="2"
                                     title="Pantau Untung/Rugi RM"
-                                    desc="Kolum 'Untung/Rugi' menunjukkan nilai tepat dalam RM bersebelahan harga semasa. Ini bantu anda kawal emosi."
+                                    desc="Kolum 'Untung/Rugi' menunjukkan nilai tepat dalam RM. Ini membantu anda membuat keputusan berdasarkan angka sebenar, bukan sekadar peratusan."
                                 />
                                 <StepNumber
                                     number="3"
                                     title="Ikut Nasihat Automatik"
-                                    desc="Sistem akan beri nasihat HOLD, SELL, atau TP. Utamakan nasihat sistem untuk keputusan tanpa bias emosi."
+                                    desc="Sistem akan keluarkan kotak amaran MERAH berlabel 'JUAL SEKARANG' jika harga mencecah Stop Loss atau Target Profit. Ikut tanpa ragu-ragu."
                                 />
                                 <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl mt-6 flex items-start gap-3">
                                     <Target className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
