@@ -186,6 +186,16 @@ export function StockModal({ stock, onClose, favouriteTickers = [], onToggleFavo
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-hidden">
             <div className="bg-surface border border-white/5 shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl animate-in fade-in zoom-in duration-300 overflow-hidden">
 
+                {/* Reject Reason Header */}
+                {stock.rejectReason && (
+                    <div className="bg-red-500/10 border-b border-red-500/20 px-6 py-3 flex items-center gap-3 animate-pulse">
+                        <AlertOctagon className="w-5 h-5 text-red-400" />
+                        <span className="text-red-400 text-xs font-black uppercase tracking-widest">
+                            PERHATIAN: {stock.rejectReason}
+                        </span>
+                    </div>
+                )}
+
                 {/* Header - Sticky */}
                 <div className="sticky top-0 z-30 flex items-center justify-between p-6 md:p-8 border-b border-white/5 bg-surfaceHighlight/50 backdrop-blur-xl">
                     <div className="flex-1">

@@ -101,6 +101,9 @@ function Dashboard() {
       const scoreNum = parseFloat(scoreToUse) || 0;
       if (scoreNum < parseFloat(minScore)) return false;
 
+      // 4. Reject Filter (Hide 'Sikat' / Pump unless Owned/Fav)
+      if (stock.rejectReason && !isOwned && !isFavourited) return false;
+
       return true;
     })
     .sort((a, b) => {
