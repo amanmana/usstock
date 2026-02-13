@@ -7,7 +7,7 @@ export function PositionManager({ ticker, currentPrice, existingPosition, recomm
     const [quantity, setQuantity] = useState(existingPosition?.quantity || '');
 
     // Risk Management States
-    const [maxRisk, setMaxRisk] = useState(50); // RM 50 risk default
+    const [maxRisk, setMaxRisk] = useState(existingPosition?.maxRisk || 50); // RM 50 risk default
     const [stopLoss, setStopLoss] = useState(existingPosition?.stopLoss || '');
     const [targetPrice, setTargetPrice] = useState(existingPosition?.targetPrice || '');
     const [showRiskCalc, setShowRiskCalc] = useState(false);
@@ -67,6 +67,7 @@ export function PositionManager({ ticker, currentPrice, existingPosition, recomm
             quantity: quantity ? parseInt(quantity) : 0,
             stopLoss: stopLoss ? parseFloat(stopLoss) : null,
             targetPrice: targetPrice ? parseFloat(targetPrice) : null,
+            maxRisk: parseFloat(maxRisk),
             buyDate: existingPosition?.buyDate || new Date().toISOString()
         });
     };
