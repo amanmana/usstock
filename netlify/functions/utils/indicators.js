@@ -261,9 +261,19 @@ export function analyzeStock(stockData) {
     // Recommendation for tab
     const recommendedTab = momentumScore > totalScore ? 'momentum' : 'rebound';
 
+    // --- Liquidity / Staleness Filter (Sikat) ---
+    // A stock is "sikat" (illiquid) if most candles have no movement (Close == Open/ClosePrev)
+    const recent20 = closes.slice(-20);
+    let zeroMoveDays = 0;
+    for (let i = 1; i < recent20.length; i++) {
+        if (recent20[i] === recent20[i - 1]) zeroMoveDays++;
+    }
+    const staleness = (zeroMoveDays / 19) * 100; // 19 intervals in 20 bars
+
     let rejectReason = null;
     if (ret5d > 35) rejectReason = 'Pump (5D > 35%)';
-    if (avgVol20 < 200000) rejectReason = 'Low Liquidity (<200k)';
+    if (avgVol20 < 150000) rejectReason = 'Low Liquidity (Vol < 150k)';
+    if (staleness > 45) rejectReason = 'Sikat (Flat Price Action)';
 
     const watchNext = [];
     if (ma20 && !reclaimedMA20 && closeToday < ma20) watchNext.push('Perhatikan harga pecah MA20');
