@@ -53,7 +53,7 @@ const SOP = () => {
                     {/* SCENARIO A */}
                     <Section
                         id="scenario-a"
-                        title="绿色 Senario A: Mencari Peluang (Tiada Holding)"
+                        title="Senario A: Mencari Peluang (Tiada Holding)"
                         icon={<TrendingUp className="w-6 h-6 text-emerald-400" />}
                         badge="MARKET SCANNING"
                     >
@@ -95,7 +95,7 @@ const SOP = () => {
                     {/* SCENARIO B */}
                     <Section
                         id="scenario-b"
-                        title="蓝色 Senario B: Mengurus Portfolio (Ada Holding)"
+                        title="Senario B: Mengurus Portfolio (Ada Holding)"
                         icon={<Activity className="w-6 h-6 text-blue-400" />}
                         badge="MONITORING & EXIT"
                     >
