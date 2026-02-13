@@ -1,5 +1,5 @@
 import { supabase } from './utils/supabaseClient';
-import { fetchStockData, mockStockData } from './utils/scraper';
+import { fetchStockData } from './utils/scraper';
 
 export const handler = async (event, context) => {
     if (event.httpMethod !== 'POST') {
