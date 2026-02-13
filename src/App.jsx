@@ -6,6 +6,8 @@ import Favourites from './pages/Favourites';
 import AdviceJournal from './pages/AdviceJournal';
 import Footer from './components/Footer';
 
+import SOP from './pages/SOP';
+
 function App() {
     return (
         <Router>
@@ -14,6 +16,7 @@ function App() {
                 <Route path="/help" element={<Help />} />
                 <Route path="/favourites" element={<Favourites />} />
                 <Route path="/journal" element={<AdviceJournal />} />
+                <Route path="/sop" element={<SOP />} />
             </Routes>
             <Footer />
         </Router>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Heart, Users, Book, HelpCircle, LayoutDashboard } from 'lucide-react';
+import { Heart, Users, Book, HelpCircle, LayoutDashboard, ClipboardCheck } from 'lucide-react';
 
 const Footer = () => {
     const [visitorCount, setVisitorCount] = useState(0);
@@ -17,6 +17,7 @@ const Footer = () => {
     const navLinks = [
         { to: '/', label: 'Dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5" />, color: 'gray' },
         { to: '/favourites', label: 'Kegemaran', icon: <Heart className="w-3.5 h-3.5 fill-red-500 text-red-500" />, color: 'red' },
+        { to: '/sop', label: 'SOP', icon: <ClipboardCheck className="w-3.5 h-3.5" />, color: 'emerald' },
         { to: '/help', label: 'Bantuan', icon: <HelpCircle className="w-3.5 h-3.5" />, color: 'primary' },
         { to: '/journal', label: 'Buku Strategi', icon: <Book className="w-3.5 h-3.5" />, color: 'purple' },
     ];
