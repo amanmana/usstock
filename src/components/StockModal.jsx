@@ -499,24 +499,51 @@ export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTick
                                 const rrNum = stock.levels?.rr1 || 0;
 
                                 if (pos) {
-                                    // Exit-focused advice for owned positions
-                                    if (stock.rejectReason || scoreToUse < 5.0) {
+                                    // Hybrid Logic: System Technicals + Personal Trade Plan
+                                    const personalTP = parseFloat(pos.targetPrice);
+                                    const personalSL = parseFloat(pos.stopLoss);
+                                    const currentPrice = stock.close;
+
+                                    // 1. Critical Exit: Stop Loss hit
+                                    if (personalSL && currentPrice <= personalSL) {
                                         verdict = "STRONG SELL / CUT";
-                                        vColor = "bg-red-500 text-white border-red-500 shadow-lg shadow-red-500/20";
+                                        vColor = "bg-red-500 text-white border-red-500 shadow-lg shadow-red-500/40 font-black";
                                         vIcon = <AlertOctagon className="w-5 h-5" />;
-                                    } else if (scoreToUse >= 7.0) {
+                                    }
+                                    // 2. Critical Exit: Take Profit hit
+                                    else if (personalTP && currentPrice >= personalTP) {
+                                        verdict = "SELL ALL / TP";
+                                        vColor = "bg-emerald-500 text-black border-emerald-500 shadow-lg shadow-emerald-500/40 font-black";
+                                        vIcon = <CheckCircle className="w-5 h-5" />;
+                                    }
+                                    // 3. Proximity Advice: Near TP (within 2%)
+                                    else if (personalTP && currentPrice >= (personalTP * 0.98)) {
+                                        verdict = "MONITOR / TP";
+                                        vColor = "bg-orange-500 text-black border-orange-500 shadow-lg shadow-orange-500/30 font-black";
+                                        vIcon = <Activity className="w-5 h-5" />;
+                                    }
+                                    // 4. System Technical Breakdown
+                                    else if (stock.rejectReason || scoreToUse < 5.0) {
+                                        verdict = "STRONG SELL / CUT";
+                                        vColor = "bg-red-500/20 text-red-500 border-red-500/50";
+                                        vIcon = <AlertOctagon className="w-5 h-5" />;
+                                    }
+                                    // 5. System Technical Strength
+                                    else if (scoreToUse >= 7.0) {
                                         if (rrNum >= 2.0) {
                                             verdict = "HOLD";
-                                            vColor = "bg-emerald-500 text-black border-emerald-500 shadow-lg shadow-emerald-500/20";
+                                            vColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/5";
                                             vIcon = <CheckCircle className="w-5 h-5" />;
                                         } else {
                                             verdict = "HOLD / SELL HALF";
-                                            vColor = "bg-yellow-500 text-black border-yellow-500 shadow-lg shadow-yellow-500/20";
+                                            vColor = "bg-yellow-500/10 text-yellow-500 border-yellow-500/20 shadow-lg shadow-yellow-500/5";
                                             vIcon = <Activity className="w-5 h-5" />;
                                         }
-                                    } else {
-                                        verdict = "MONITOR / TP";
-                                        vColor = "bg-orange-500/20 text-orange-500 border-orange-500/50";
+                                    }
+                                    // 6. Neutral (Default)
+                                    else {
+                                        verdict = "MONITOR";
+                                        vColor = "bg-gray-500/10 text-gray-400 border-gray-500/20";
                                         vIcon = <Activity className="w-5 h-5" />;
                                     }
                                 } else {
