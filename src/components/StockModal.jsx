@@ -498,19 +498,43 @@ export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTick
                                 let vIcon = <Activity className="w-5 h-5" />;
                                 const rrNum = stock.levels?.rr1 || 0;
 
-                                if (stock.rejectReason || scoreToUse < 5.0) {
-                                    verdict = "AVOID";
-                                    vColor = "bg-red-500/20 text-red-500 border-red-500/50";
-                                    vIcon = <AlertOctagon className="w-5 h-5" />;
-                                } else if (scoreToUse >= 7.0) {
-                                    if (rrNum >= 2.0) {
-                                        verdict = "GO";
-                                        vColor = "bg-emerald-500 text-black border-emerald-500";
-                                        vIcon = <CheckCircle className="w-5 h-5" />;
+                                if (pos) {
+                                    // Exit-focused advice for owned positions
+                                    if (stock.rejectReason || scoreToUse < 5.0) {
+                                        verdict = "STRONG SELL / CUT";
+                                        vColor = "bg-red-500 text-white border-red-500 shadow-lg shadow-red-500/20";
+                                        vIcon = <AlertOctagon className="w-5 h-5" />;
+                                    } else if (scoreToUse >= 7.0) {
+                                        if (rrNum >= 2.0) {
+                                            verdict = "HOLD";
+                                            vColor = "bg-emerald-500 text-black border-emerald-500 shadow-lg shadow-emerald-500/20";
+                                            vIcon = <CheckCircle className="w-5 h-5" />;
+                                        } else {
+                                            verdict = "HOLD / SELL HALF";
+                                            vColor = "bg-yellow-500 text-black border-yellow-500 shadow-lg shadow-yellow-500/20";
+                                            vIcon = <Activity className="w-5 h-5" />;
+                                        }
                                     } else {
-                                        verdict = "WAIT / QUE";
-                                        vColor = "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
-                                        vIcon = <Loader2 className="w-5 h-5" />;
+                                        verdict = "MONITOR / TP";
+                                        vColor = "bg-orange-500/20 text-orange-500 border-orange-500/50";
+                                        vIcon = <Activity className="w-5 h-5" />;
+                                    }
+                                } else {
+                                    // Entry-focused advice for watchlist/discovery
+                                    if (stock.rejectReason || scoreToUse < 5.0) {
+                                        verdict = "AVOID";
+                                        vColor = "bg-red-500/20 text-red-500 border-red-500/50";
+                                        vIcon = <AlertOctagon className="w-5 h-5" />;
+                                    } else if (scoreToUse >= 7.0) {
+                                        if (rrNum >= 2.0) {
+                                            verdict = "GO";
+                                            vColor = "bg-emerald-500 text-black border-emerald-500 shadow-lg shadow-emerald-500/20";
+                                            vIcon = <CheckCircle className="w-5 h-5" />;
+                                        } else {
+                                            verdict = "WAIT / QUE";
+                                            vColor = "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
+                                            vIcon = <Loader2 className="w-5 h-5" />;
+                                        }
                                     }
                                 }
 
