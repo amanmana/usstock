@@ -29,12 +29,13 @@ import { Link } from 'react-router-dom';
 function Dashboard() {
   const { results, loading, error, lastUpdated, refetch } = useScreener();
   const { startSync, status: syncStatus, progress, total, messages } = useSync();
-  const { favouriteTickers, toggleFavourite } = useFavourites();
-  const { positions, addPosition, removePosition } = usePositions();
+  const { favouriteTickers, favouriteDetails, toggleFavourite, toggleAlert } = useFavourites();
+  const { positions, addPosition, removePosition, sellPosition } = usePositions();
 
   const [minScore, setMinScore] = useState("0");
   const [shariahOnly, setShariahOnly] = useState(true);
   const [selectedStock, setSelectedStock] = useState(null);
+  const [selectedStrategy, setSelectedStrategy] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [dataMode, setDataMode] = useState('hybrid');
   const [systemStats, setSystemStats] = useState(null);
@@ -143,7 +144,10 @@ function Dashboard() {
     }
   };
 
-  const handleSelectStock = async (stock) => {
+  const handleSelectStock = async (stock, strategy = null) => {
+    // Preserve the strategy if forced (e.g. from Top Pick card)
+    setSelectedStrategy(strategy);
+
     if (stock.inScreener) {
       setSelectedStock(stock);
     } else {
@@ -255,7 +259,7 @@ function Dashboard() {
       <div className="max-w-7xl mx-auto mb-10 grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
         {/* Rebound Pick */}
         <div
-          onClick={() => topRebound && handleSelectStock(topRebound)}
+          onClick={() => topRebound && handleSelectStock(topRebound, 'rebound')}
           className={`
             relative overflow-hidden group cursor-pointer p-6 rounded-[2rem] border transition-all duration-500 hover:scale-[1.02] active:scale-95
             ${topRebound ? 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40 shadow-2xl shadow-emerald-500/10' : 'bg-surface/50 border-border opacity-50'}
@@ -290,7 +294,7 @@ function Dashboard() {
 
         {/* Momentum Pick */}
         <div
-          onClick={() => topMomentum && handleSelectStock(topMomentum)}
+          onClick={() => topMomentum && handleSelectStock(topMomentum, 'momentum')}
           className={`
             relative overflow-hidden group cursor-pointer p-6 rounded-[2rem] border transition-all duration-500 hover:scale-[1.02] active:scale-95
             ${topMomentum ? 'bg-orange-500/5 border-orange-500/20 hover:border-orange-500/40 shadow-2xl shadow-orange-500/10' : 'bg-surface/50 border-border opacity-50'}
@@ -431,6 +435,7 @@ function Dashboard() {
           <StockSearch
             onSelect={handleSelectStock}
             screenerResults={resultsArray}
+            activeTab={activeTab}
             favouriteTickers={favouriteTickers}
             onToggleFavourite={toggleFavourite}
           />
@@ -503,6 +508,7 @@ function Dashboard() {
             onView={setSelectedStock}
             onToggleFavourite={toggleFavourite}
             favouriteTickers={favouriteTickers}
+            favouriteDetails={favouriteDetails}
             activeTab={activeTab}
             positions={positions}
           />
@@ -543,12 +549,19 @@ function Dashboard() {
       {selectedStock && (
         <StockModal
           stock={selectedStock}
-          onClose={() => setSelectedStock(null)}
+          onClose={() => {
+            setSelectedStock(null);
+            setSelectedStrategy(null);
+          }}
+          strategy={selectedStrategy || activeTab}
           favouriteTickers={favouriteTickers}
+          favouriteDetails={favouriteDetails}
           onToggleFavourite={toggleFavourite}
+          onToggleAlert={toggleAlert}
           positions={positions}
           onSavePosition={addPosition}
           onRemovePosition={removePosition}
+          onSellPosition={sellPosition}
         />
       )}
     </div>

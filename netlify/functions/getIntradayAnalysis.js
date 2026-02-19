@@ -41,10 +41,34 @@ export const handler = async (event, context) => {
         const avg20w = weekly ? weekly.slice(-20).reduce((acc, p) => acc + p.close, 0) / Math.min(weekly.length, 20) : currentPrice;
         const trend1w = currentPrice > avg20w * 1.02 ? 'Bullish' : (currentPrice < avg20w * 0.98 ? 'Bearish' : 'Neutral');
 
+        // Pullback & Rally Days Calculation
+        let pullbackDays = 0;
+        let rallyDays = 0;
+        if (daily && daily.length > 1) {
+            const last = daily[daily.length - 1];
+            const prev = daily[daily.length - 2];
+
+            if (last.close < prev.close) {
+                // Consecutive lower closes
+                for (let i = daily.length - 1; i > 0; i--) {
+                    if (daily[i].close < daily[i - 1].close) pullbackDays++;
+                    else break;
+                }
+            } else if (last.close > prev.close) {
+                // Consecutive higher closes
+                for (let i = daily.length - 1; i > 0; i--) {
+                    if (daily[i].close > daily[i - 1].close) rallyDays++;
+                    else break;
+                }
+            }
+        }
+
         const alignment = {
             m15: trend15m,
             d1: trend1d,
-            w1: trend1w
+            w1: trend1w,
+            pullbackDays,
+            rallyDays
         };
 
         const scoreMTF = (trend15m === 'Bullish' ? 1 : 0) + (trend1d === 'Bullish' ? 1 : 0) + (trend1w === 'Bullish' ? 1 : 0);

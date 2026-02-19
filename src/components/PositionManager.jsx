@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Trash2, TrendingUp, BarChart2, DollarSign, Target, Hash, ShieldAlert, Calculator } from 'lucide-react';
 
-export function PositionManager({ ticker, currentPrice, existingPosition, recommendedStrategy, onSave, onRemove }) {
+export function PositionManager({ ticker, currentPrice, existingPosition, technicalLevels, recommendedStrategy, onSave, onRemove, onSell }) {
     const [entryPrice, setEntryPrice] = useState(existingPosition?.entryPrice || currentPrice || '');
     const [strategy, setStrategy] = useState(existingPosition?.strategy || recommendedStrategy || 'momentum');
     const [quantity, setQuantity] = useState(existingPosition?.quantity || '');
@@ -11,6 +11,14 @@ export function PositionManager({ ticker, currentPrice, existingPosition, recomm
     const [stopLoss, setStopLoss] = useState(existingPosition?.stopLoss || '');
     const [targetPrice, setTargetPrice] = useState(existingPosition?.targetPrice || '');
     const [showRiskCalc, setShowRiskCalc] = useState(false);
+    const [showSellModal, setShowSellModal] = useState(false);
+
+    // Sell Modal States
+    const [sellPrice, setSellPrice] = useState(currentPrice || '');
+    const [sellQty, setSellQty] = useState(existingPosition?.quantity || '');
+    const [tradeType, setTradeType] = useState('REAL');
+    const [sellNotes, setSellNotes] = useState('');
+    const [isSelling, setIsSelling] = useState(false);
 
     // Reset strategy if recommendedStrategy changes and no existing position
     useEffect(() => {
@@ -22,10 +30,18 @@ export function PositionManager({ ticker, currentPrice, existingPosition, recomm
     // Update suggested SL and Target when entryPrice changes (only for new positions)
     useEffect(() => {
         if (entryPrice && !existingPosition) {
-            if (!stopLoss) setStopLoss((parseFloat(entryPrice) * 0.95).toFixed(3)); // Default 5% SL
-            if (!targetPrice) setTargetPrice((parseFloat(entryPrice) * 1.10).toFixed(3)); // Default 10% TP
+            // Priority 1: System's technical levels
+            // Priority 2: Mathematical defaults (5% SL, 10% TP)
+            if (!stopLoss) {
+                const suggestedSL = technicalLevels?.stopPrice || (parseFloat(entryPrice) * 0.95);
+                setStopLoss(suggestedSL.toFixed(3));
+            }
+            if (!targetPrice) {
+                const suggestedTP = technicalLevels?.target1 || (parseFloat(entryPrice) * 1.10);
+                setTargetPrice(suggestedTP.toFixed(3));
+            }
         }
-    }, [entryPrice, existingPosition]);
+    }, [entryPrice, existingPosition, technicalLevels]);
 
     const sizing = React.useMemo(() => {
         if (!entryPrice || !stopLoss || !maxRisk) return { suggestedLots: 0, potentialProfit: 0, totalInvestment: 0, rr: 0 };
@@ -44,11 +60,19 @@ export function PositionManager({ ticker, currentPrice, existingPosition, recomm
         const totalInvestment = entry * actualUnits;
         const rr = (tp - entry) / riskPerUnit;
 
+        // Sweet Spot Calculation (Target RR 2.0)
+        // (tp - entry) / (entry - sl) = 2
+        // tp - entry = 2 * entry - 2 * sl
+        // tp + 2 * sl = 3 * entry
+        // entry = (tp + 2 * sl) / 3
+        const sweetSpot = tp && sl ? (tp + (2 * sl)) / 3 : null;
+
         return {
             suggestedLots,
             potentialProfit,
             totalInvestment,
-            rr: tp > entry ? rr.toFixed(2) : 0
+            rr: tp > entry ? rr.toFixed(2) : 0,
+            sweetSpot: sweetSpot && sweetSpot < tp ? sweetSpot.toFixed(3) : null
         };
     }, [entryPrice, stopLoss, targetPrice, maxRisk]);
 
@@ -70,6 +94,25 @@ export function PositionManager({ ticker, currentPrice, existingPosition, recomm
             maxRisk: parseFloat(maxRisk),
             buyDate: existingPosition?.buyDate || new Date().toISOString()
         });
+    };
+
+    const handleSell = async () => {
+        if (!sellPrice || !sellQty) return;
+        setIsSelling(true);
+        try {
+            await onSell({
+                sell_price: parseFloat(sellPrice),
+                quantity: parseInt(sellQty),
+                trade_type: tradeType,
+                notes: sellNotes
+            });
+            setShowSellModal(false);
+            setSellNotes('');
+        } catch (err) {
+            alert(err.message || "Sell failed");
+        } finally {
+            setIsSelling(false);
+        }
     };
 
     return (
@@ -208,6 +251,15 @@ export function PositionManager({ ticker, currentPrice, existingPosition, recomm
                                 className="w-full bg-background/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 outline-none transition-all placeholder:text-gray-700"
                                 placeholder="0.000"
                             />
+                            {sizing.sweetSpot && (
+                                <button
+                                    onClick={() => setEntryPrice(sizing.sweetSpot)}
+                                    className="mt-1.5 ml-1 text-[9px] font-bold text-emerald-400/60 hover:text-emerald-400 transition-colors uppercase tracking-widest flex items-center gap-1 group/ss"
+                                >
+                                    <Target className="w-2.5 h-2.5 transition-transform group-hover/ss:scale-110" />
+                                    QUE PRICE (RR 2.0): <span className="text-white">RM {sizing.sweetSpot}</span>
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -256,19 +308,114 @@ export function PositionManager({ ticker, currentPrice, existingPosition, recomm
                                 : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 hover:-translate-y-0.5 active:translate-y-0'}
                         `}
                     >
-                        <Save className="w-4 h-4" /> {existingPosition ? 'Update Position' : 'Record My Buy'}
+                        <Save className="w-4 h-4" /> {existingPosition ? 'Update' : 'Record My Buy'}
                     </button>
                     {existingPosition && (
-                        <button
-                            onClick={() => onRemove(ticker)}
-                            className="p-4 bg-red-400/5 hover:bg-red-400/10 text-red-500 border border-red-500/10 rounded-xl transition-all group"
-                            title="Remove Position"
-                        >
-                            <Trash2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                        </button>
+                        <>
+                            <button
+                                onClick={() => {
+                                    setSellPrice(currentPrice);
+                                    setSellQty(existingPosition.quantity);
+                                    setShowSellModal(true);
+                                }}
+                                className="flex-1 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-black py-4 rounded-xl transition-all text-xs uppercase tracking-widest shadow-lg shadow-orange-500/20"
+                            >
+                                <TrendingUp className="w-4 h-4" /> SELL
+                            </button>
+                            <button
+                                onClick={() => onRemove(ticker)}
+                                className="p-4 bg-red-400/5 hover:bg-red-400/10 text-red-500 border border-red-500/10 rounded-xl transition-all group"
+                                title="Remove Position"
+                            >
+                                <Trash2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
+
+            {/* Sell Modal Overlay */}
+            {showSellModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#151518] border border-white/10 w-full max-w-sm rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-amber-500"></div>
+
+                        <h4 className="text-xl font-black text-white uppercase italic tracking-tighter mb-6 flex items-center gap-3">
+                            <TrendingUp className="w-6 h-6 text-orange-500" /> Sell Position
+                        </h4>
+
+                        <div className="space-y-5">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Trade Category</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => setTradeType('REAL')}
+                                        className={`py-3 rounded-xl text-xs font-black transition-all ${tradeType === 'REAL' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                                    >
+                                        REAL TRADE
+                                    </button>
+                                    <button
+                                        onClick={() => setTradeType('PAPER')}
+                                        className={`py-3 rounded-xl text-xs font-black transition-all ${tradeType === 'PAPER' ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                                    >
+                                        PAPER TRADE
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Sell Price (RM)</label>
+                                    <input
+                                        type="number"
+                                        step="0.001"
+                                        value={sellPrice}
+                                        onChange={(e) => setSellPrice(e.target.value)}
+                                        className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-orange-500/50 transition-all font-bold"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Quantity</label>
+                                    <input
+                                        type="number"
+                                        value={sellQty}
+                                        onChange={(e) => setSellQty(e.target.value)}
+                                        className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-orange-500/50 transition-all font-bold"
+                                        max={existingPosition?.quantity || 0}
+                                    />
+                                    <p className="text-[9px] text-gray-500 font-bold uppercase ml-1">Max: {existingPosition?.quantity || 0}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Notes (Optional)</label>
+                                <textarea
+                                    value={sellNotes}
+                                    onChange={(e) => setSellNotes(e.target.value)}
+                                    placeholder="Kenapa jual? (e.g. Hit TP, Break Support)"
+                                    className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-orange-500/50 transition-all min-h-[80px] resize-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-8">
+                            <button
+                                onClick={() => setShowSellModal(false)}
+                                className="flex-1 py-4 rounded-xl text-xs font-black text-gray-400 uppercase tracking-widest hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSell}
+                                disabled={isSelling || !sellPrice || !sellQty}
+                                className="flex-[2] bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white py-4 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-orange-500/20 transition-all active:scale-95"
+                            >
+                                {isSelling ? 'PROCESSING...' : (existingPosition && parseInt(sellQty) < existingPosition.quantity ? 'CONFIRM PARTIAL SELL' : 'CONFIRM FULL SELL')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

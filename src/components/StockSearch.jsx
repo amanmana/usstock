@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Loader2, ListFilter, Heart } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-export function StockSearch({ onSelect, screenerResults, favouriteTickers = [], onToggleFavourite }) {
+export function StockSearch({ onSelect, screenerResults, activeTab = 'rebound', favouriteTickers = [], onToggleFavourite }) {
     const [query, setQuery] = useState('');
     const [suggestions, setSuggestions] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -43,7 +43,21 @@ export function StockSearch({ onSelect, screenerResults, favouriteTickers = [], 
                 (s.ticker || '').toLowerCase().includes(val.toLowerCase()) ||
                 (s.company || '').toLowerCase().includes(val.toLowerCase()) ||
                 (s.short_name && s.short_name.toLowerCase().includes(val.toLowerCase()))
-            ).map(s => ({ ...s, ticker_full: s.ticker, inScreener: true }));
+            );
+
+            // Use a Map to de-duplicate by ticker_full
+            const uniqueResults = new Map();
+
+            screenerMatches.forEach(s => {
+                const tickerKey = (s.ticker || '').trim().toUpperCase();
+                if (tickerKey && !uniqueResults.has(tickerKey)) {
+                    uniqueResults.set(tickerKey, {
+                        ...s,
+                        ticker_full: s.ticker,
+                        inScreener: true
+                    });
+                }
+            });
 
             // 2. Search global database for missing ones
             const { data: globalMatches, error } = await supabase
@@ -54,19 +68,17 @@ export function StockSearch({ onSelect, screenerResults, favouriteTickers = [], 
 
             if (error) throw error;
 
-            // Merge and de-duplicate
-            const results = [...screenerMatches];
-            const screenerTickers = new Set(screenerMatches.map(s => s.ticker));
-
             globalMatches?.forEach(g => {
-                const fullTicker = g.ticker_full;
-                if (!screenerTickers.has(fullTicker)) {
-                    results.push({
+                const fullTicker = (g.ticker_full || '').trim().toUpperCase();
+                const codeTicker = (g.ticker_code || '').trim().toUpperCase();
+
+                // Check if already in uniqueResults by either full ticker or code
+                if (fullTicker && !uniqueResults.has(fullTicker)) {
+                    uniqueResults.set(fullTicker, {
                         ticker: g.ticker_code,
                         company: g.company_name,
-                        ticker_full: fullTicker,
+                        ticker_full: g.ticker_full,
                         inScreener: false,
-                        // Dummy data for non-screener stocks
                         score: '-',
                         close: 0,
                         stats: {},
@@ -75,7 +87,8 @@ export function StockSearch({ onSelect, screenerResults, favouriteTickers = [], 
                 }
             });
 
-            setSuggestions(results.slice(0, 8));
+            const finalResults = Array.from(uniqueResults.values());
+            setSuggestions(finalResults.slice(0, 8));
         } catch (err) {
             console.error('Search error:', err);
         } finally {
@@ -129,7 +142,9 @@ export function StockSearch({ onSelect, screenerResults, favouriteTickers = [], 
                                             {stock.inScreener ? (
                                                 <div className="text-right">
                                                     <div className="text-[10px] text-primary font-bold uppercase tracking-tighter mb-0.5">Screener Result</div>
-                                                    <div className="text-xs font-mono text-gray-300">Score: {stock.score}</div>
+                                                    <div className={`text-xs font-mono ${activeTab === 'momentum' ? 'text-orange-400' : 'text-emerald-400'}`}>
+                                                        {activeTab === 'momentum' ? 'Mom. Score' : 'Score'}: {activeTab === 'momentum' ? (stock.momentumScore || stock.score) : stock.score}
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <span className="text-[10px] bg-gray-800 text-gray-400 px-2 py-0.5 rounded border border-gray-700">Database Only</span>

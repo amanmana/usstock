@@ -6,7 +6,10 @@ import {
     ArrowLeft,
     Loader2,
     AlertCircle,
-    CheckCircle
+    CheckCircle,
+    X,
+    RefreshCw,
+    Clock
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useScreener } from '../hooks/useScreener';
@@ -18,7 +21,7 @@ import { usePositions } from '../hooks/usePositions';
 const FavouritesPage = () => {
     const navigate = useNavigate();
     const { results, loading, refetch } = useScreener();
-    const { favouriteTickers, toggleFavourite, addCustomFavourite, loadingFavs } = useFavourites();
+    const { favouriteTickers, favouriteDetails, toggleFavourite, toggleAlert, addCustomFavourite, loadingFavs } = useFavourites();
     const { positions, addPosition, removePosition } = usePositions();
 
     const [showAddModal, setShowAddModal] = useState(false);
@@ -29,19 +32,79 @@ const FavouritesPage = () => {
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
 
+    // Latest Prices Tracking
+    const [latestPrices, setLatestPrices] = useState({}); // Ticker -> { close, volume, updatedAt }
+    const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
+    const [pricesUpdatedAt, setPricesUpdatedAt] = useState(null);
+
+    const fetchLatestPrices = async (tickers) => {
+        if (!tickers || tickers.length === 0) return;
+        setIsRefreshingPrices(true);
+        try {
+            const res = await fetch('/.netlify/functions/getLatestPrices', {
+                method: 'POST',
+                body: JSON.stringify({ tickers })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const priceMap = {};
+                data.forEach(item => {
+                    if (item.close) {
+                        priceMap[item.ticker] = {
+                            close: item.close,
+                            volume: item.volume,
+                            updatedAt: new Date()
+                        };
+                    }
+                });
+                setLatestPrices(prev => ({ ...prev, ...priceMap }));
+                setPricesUpdatedAt(new Date());
+            }
+        } catch (e) {
+            console.error("Error fetching latest prices:", e);
+        } finally {
+            setIsRefreshingPrices(false);
+        }
+    };
+
+    // Initial fetch when tickers are loaded
+    React.useEffect(() => {
+        if (favouriteTickers.length > 0 && Object.keys(latestPrices).length === 0) {
+            fetchLatestPrices(favouriteTickers);
+        }
+    }, [favouriteTickers.length]);
+
+    // Polling every 5 minutes
+    React.useEffect(() => {
+        const interval = setInterval(() => {
+            if (favouriteTickers.length > 0) {
+                fetchLatestPrices(favouriteTickers);
+            }
+        }, 5 * 60 * 1000); // 5 minutes
+        return () => clearInterval(interval);
+    }, [favouriteTickers]);
+
     // Filter results to show only those in the favourite list
-    // If a ticker is in favouriteTickers but not in results yet (e.g. just added), 
-    // we create a placeholder so it doesn't "disappear" from the UI.
+    // Inject latest prices if available
     const favResults = favouriteTickers.map(ticker => {
         const analyzeResult = (results || []).find(r => r.ticker === ticker);
-        if (analyzeResult) return analyzeResult;
+        const latestInfo = latestPrices[ticker];
+
+        if (analyzeResult) {
+            return {
+                ...analyzeResult,
+                close: latestInfo?.close || analyzeResult.close,
+                isLivePrice: !!latestInfo
+            };
+        }
 
         // Pending state placeholder
         return {
             ticker: ticker,
             company: 'Loading Data...',
             score: '...',
-            close: 0,
+            close: latestInfo?.close || 0,
+            isLivePrice: !!latestInfo,
             stats: { rsi14: 0, dropdownPercent: 0 },
             signals: ['PENDING'],
             isPending: true
@@ -149,15 +212,39 @@ const FavouritesPage = () => {
                     </button>
                 </div>
 
-                {/* Info Card */}
-                <div className="mb-8 p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-start gap-4">
-                    <AlertCircle className="w-6 h-6 text-primary shrink-0 mt-0.5" />
-                    <div>
-                        <h4 className="text-primary font-bold text-sm">Experimental Tracking</h4>
-                        <p className="text-xs text-gray-400 mt-1 max-w-2xl leading-relaxed">
-                            Stocks added manually will be tracked in the next EOD sync. If historical data is missing, indicators like MA20/MA50 will appear as "Incomplete" until enough days have been recorded.
-                        </p>
+                {/* Info Card with Refresh */}
+                <div className="flex flex-col md:flex-row gap-4 mb-8">
+                    <div className="flex-1 p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-start gap-4">
+                        <AlertCircle className="w-6 h-6 text-primary shrink-0 mt-0.5" />
+                        <div>
+                            <h4 className="text-primary font-bold text-sm">Real-time Tracking</h4>
+                            <p className="text-xs text-gray-400 mt-1 max-w-2xl leading-relaxed">
+                                Kaunter kegemaran anda akan dikemaskini dengan harga pasaran terkini dari Yahoo Finance secara automatik setiap 5 minit.
+                            </p>
+                        </div>
                     </div>
+
+                    {favouriteTickers.length > 0 && (
+                        <div className="flex items-center gap-4 bg-surfaceHighlight/30 border border-border px-6 py-4 rounded-2xl shrink-0">
+                            <div className="text-right">
+                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none mb-1">Status Harga</div>
+                                <div className="flex items-center gap-2">
+                                    <Clock className="w-3.5 h-3.5 text-gray-500" />
+                                    <span className="text-xs text-white font-bold">
+                                        {pricesUpdatedAt ? `Kemaskini: ${pricesUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Sedang mengambil...'}
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => fetchLatestPrices(favouriteTickers)}
+                                disabled={isRefreshingPrices}
+                                className={`p-3 rounded-xl transition-all ${isRefreshingPrices ? 'bg-primary/20 text-primary animate-spin' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'}`}
+                                title="Refresh Prices Now"
+                            >
+                                <RefreshCw className={`w-5 h-5 ${isRefreshingPrices ? 'animate-spin' : ''}`} />
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Content */}
@@ -172,14 +259,23 @@ const FavouritesPage = () => {
                         onView={setSelectedStock}
                         onToggleFavourite={toggleFavourite}
                         favouriteTickers={favouriteTickers}
+                        favouriteDetails={favouriteDetails}
                         positions={positions}
+                        activeTab="hybrid"
                     />
                 )}
 
                 {/* Add Modal */}
                 {showAddModal && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-                        <div className="bg-surface w-full max-w-md border border-border shadow-2xl rounded-3xl overflow-visible animate-in fade-in zoom-in duration-200">
+                        <div className="bg-surface w-full max-w-md border border-border shadow-2xl rounded-3xl overflow-visible animate-in fade-in zoom-in duration-200 relative">
+                            <button
+                                onClick={() => setShowAddModal(false)}
+                                className="absolute top-6 right-6 p-2 text-gray-500 hover:text-white hover:bg-white/10 rounded-full transition-all z-10"
+                                title="Close"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
                             <div className="p-8">
                                 <h3 className="text-2xl font-bold text-white mb-2">Track New Ticker</h3>
                                 <p className="text-gray-500 text-sm mb-6">Enter a Bursa Malaysia symbol (e.g. MAYBANK, PBBANK, AIRPORT) to start monitoring it.</p>
@@ -309,8 +405,11 @@ const FavouritesPage = () => {
                     <StockModal
                         stock={selectedStock}
                         onClose={() => setSelectedStock(null)}
+                        strategy="hybrid"
                         favouriteTickers={favouriteTickers}
+                        favouriteDetails={favouriteDetails}
                         onToggleFavourite={toggleFavourite}
+                        onToggleAlert={toggleAlert}
                         positions={positions}
                         onSavePosition={addPosition}
                         onRemovePosition={removePosition}

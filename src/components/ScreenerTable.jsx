@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Eye, Heart, ExternalLink } from 'lucide-react';
+import { Eye, Heart, ExternalLink, Bell, Activity } from 'lucide-react';
 import { format } from 'date-fns';
 
-export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTickers = [], activeTab = 'rebound', positions = {} }) {
+export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTickers = [], favouriteDetails = {}, activeTab = 'rebound', positions = {} }) {
     if (!data || data.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center p-12 text-center border border-border dashed rounded-xl bg-surface/50">
@@ -39,12 +39,16 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
                         const isStockOwnedByUser = !!positions[stock.ticker];
 
                         // Recommendation Logic
-                        const isMomentum = activeTab === 'momentum';
+                        const isHybrid = activeTab === 'hybrid';
+                        const momentumScore = parseFloat(stock.momentumScore) || 0;
+                        const reboundScore = parseFloat(stock.score) || 0;
+
+                        // If hybrid, use whichever is higher
+                        const isMomentum = isHybrid ? (momentumScore > reboundScore) : (activeTab === 'momentum');
+                        const scoreNum = isMomentum ? momentumScore : reboundScore;
+
                         let recommendation = "NEUTRAL";
                         let colorClass = "text-gray-400 bg-gray-500/10 border-gray-500/20";
-                        const momentumScore = parseFloat(stock.momentumScore) || 0;
-                        const defaultScore = parseFloat(stock.score) || 0;
-                        const scoreNum = isMomentum ? momentumScore : defaultScore;
                         let conviction = Math.round(scoreNum * 10);
 
                         if (stock.stats?.rsi14 >= 75) {
@@ -93,18 +97,31 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
                                             {isStockOwnedByUser && (
                                                 <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/30 font-black animate-pulse">OWNED</span>
                                             )}
+                                            {favouriteDetails[stock.ticker]?.alert_enabled && (
+                                                <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/30 rounded text-[9px] font-black text-blue-400 animate-pulse">
+                                                    <Bell className="w-2.5 h-2.5 fill-current" />
+                                                    ALERT
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </td>
 
                                 <td className="p-4 text-center">
-                                    <div className={`
-                                        inline-flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm
-                                        ${scoreNum >= 8.5 ? (isMomentum ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'bg-accent/10 text-accent border border-accent/20') :
-                                            scoreNum >= 7.0 ? 'bg-primary/10 text-primary border border-primary/20' :
-                                                'bg-gray-700/50 text-gray-400'}
-                                    `}>
-                                        {scoreNum.toFixed(1)}
+                                    <div className="flex flex-col items-center gap-1">
+                                        <div className={`
+                                            inline-flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm
+                                            ${scoreNum >= 8.5 ? (isMomentum ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'bg-accent/10 text-accent border border-accent/20') :
+                                                scoreNum >= 7.0 ? 'bg-primary/10 text-primary border border-primary/20' :
+                                                    'bg-gray-700/50 text-gray-400'}
+                                        `}>
+                                            {scoreNum.toFixed(1)}
+                                        </div>
+                                        {isHybrid && (
+                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-tighter ${isMomentum ? 'bg-orange-500/10 text-orange-500 border-orange-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'}`}>
+                                                {isMomentum ? 'Momentum' : 'Rebound'}
+                                            </span>
+                                        )}
                                     </div>
                                 </td>
 
@@ -116,18 +133,29 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
                                 </td>
 
                                 <td className="p-4 text-right">
-                                    <div className="font-mono text-gray-200 text-base font-medium">
-                                        {stock.close ? stock.close.toFixed(3) : '-'}
-                                    </div>
-                                    <div className="text-xs text-gray-600 mt-0.5">
-                                        {(() => {
-                                            if (!stock.date) return '-';
-                                            try {
-                                                return format(new Date(stock.date), 'dd MMM');
-                                            } catch (e) {
-                                                return '-';
-                                            }
-                                        })()}
+                                    <div className="flex flex-col items-end">
+                                        <div className={`font-mono text-base font-bold transition-all duration-500 ${stock.isLivePrice ? 'text-primary' : 'text-gray-200'}`}>
+                                            RM {stock.close ? stock.close.toFixed(3) : '-'}
+                                        </div>
+                                        <div className="mt-0.5">
+                                            {stock.isLivePrice ? (
+                                                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-primary/10 border border-primary/20 rounded text-[9px] font-black text-primary animate-pulse uppercase tracking-widest">
+                                                    <Activity className="w-2.5 h-2.5" />
+                                                    LIVE Price
+                                                </div>
+                                            ) : (
+                                                <div className="text-[10px] text-gray-600 font-bold uppercase tracking-wider">
+                                                    {(() => {
+                                                        if (!stock.date) return '-';
+                                                        try {
+                                                            return format(new Date(stock.date), 'dd MMM');
+                                                        } catch (e) {
+                                                            return '-';
+                                                        }
+                                                    })()}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </td>
 

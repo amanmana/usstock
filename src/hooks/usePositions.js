@@ -129,11 +129,30 @@ export function usePositions() {
 
     const getPosition = (ticker) => positions[ticker];
 
+    const sellPosition = async (sellData) => {
+        try {
+            const res = await fetch('/.netlify/functions/sellPosition', {
+                method: 'POST',
+                body: JSON.stringify(sellData)
+            });
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(errText || "Failed to sell");
+            }
+            await fetchPositions();
+            return await res.json();
+        } catch (err) {
+            console.error(err);
+            throw err;
+        }
+    };
+
     return {
         positions,
         loading,
         addPosition,
         removePosition,
-        getPosition
+        getPosition,
+        sellPosition
     };
 }

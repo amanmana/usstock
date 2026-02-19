@@ -42,9 +42,17 @@ export const handler = async (event) => {
                 .insert({ ticker_full: ticker, is_active: true });
         }
 
+        const { data: updated, error: updateErr } = await supabase
+            .from('favourites')
+            .select('*')
+            .eq('ticker_full', ticker)
+            .single();
+
+        if (updateErr) throw updateErr;
+
         return {
             statusCode: 200,
-            body: JSON.stringify({ ticker, is_active: isActive })
+            body: JSON.stringify(updated)
         };
     } catch (err) {
         return { statusCode: 500, body: err.message };

@@ -4,17 +4,32 @@ import Dashboard from './pages/Dashboard';
 import Help from './pages/Help';
 import Favourites from './pages/Favourites';
 import AdviceJournal from './pages/AdviceJournal';
+import TradeLog from './pages/TradeLog';
 import Footer from './components/Footer';
 
 import SOP from './pages/SOP';
 
+import Login from './pages/Login';
+
 function App() {
+    const [isAuthenticated, setIsAuthenticated] = React.useState(
+        localStorage.getItem('brs_auth') === 'true'
+    );
+
+    const handleLogin = () => {
+        localStorage.setItem('brs_auth', 'true');
+        setIsAuthenticated(true);
+    };
+
+    if (!isAuthenticated) return <Login onLogin={handleLogin} />;
+
     return (
         <Router>
             <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/help" element={<Help />} />
                 <Route path="/favourites" element={<Favourites />} />
+                <Route path="/tradelog" element={<TradeLog />} />
                 <Route path="/journal" element={<AdviceJournal />} />
                 <Route path="/sop" element={<SOP />} />
             </Routes>

@@ -7,7 +7,10 @@ import {
     Target,
     ShieldAlert,
     HelpCircle,
-    ChevronRight
+    ChevronRight,
+    CheckCircle,
+    AlertOctagon,
+    Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -17,6 +20,7 @@ const sections = [
     { id: 'trade-setup', title: 'Trade Setup', desc: 'Pelan TP, SL dan RRR.', icon: <Target />, color: 'blue' },
     { id: 'mtf-confirmation', title: 'Trend Confirmation', desc: 'Sistem 3-Dot (Alignment).', icon: <Activity />, color: 'purple' },
     { id: 'risk-management', title: 'Risk Management', desc: 'Kalkulator Lot & Sizing.', icon: <ShieldAlert />, color: 'red' },
+    { id: 'analysis-status', title: 'Status Analisa', desc: 'Maksud GO, AVOID, & NEUTRAL.', icon: <CheckCircle />, color: 'blue' },
     { id: 'sr-levels', title: 'Support & Resistance', desc: 'Tahap rintangan dan kekuatan.', icon: <HelpCircle />, color: 'indigo' },
 ];
 
@@ -264,6 +268,80 @@ const HelpPage = () => {
                                 <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
                                     <span className="text-emerald-500 font-bold text-xs uppercase block mb-1">RR {'>'} 2.0</span>
                                     <p className="text-[11px] text-gray-500 font-medium">**Zon A+.** Keuntungan potensi adalah 2x risiko. Utamakan ini.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </Section>
+
+                    {/* ANALYSIS STATUS */}
+                    <Section
+                        id="analysis-status"
+                        title="Status Analisa & Keputusan"
+                        icon={<CheckCircle className="w-6 h-6" />}
+                        color="blue"
+                    >
+                        <p className="text-gray-400 mb-8 leading-relaxed">
+                            Sistem memberikan "Badge" keputusan pantas untuk membantu anda membuat keputusan dalam masa beberapa saat.
+                        </p>
+
+                        <div className="space-y-4">
+                            {/* GO */}
+                            <div className="flex gap-4 p-5 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 items-start group hover:bg-emerald-500/20 transition-all">
+                                <div className="p-2 rounded-xl bg-emerald-500 text-black shadow-lg shadow-emerald-500/20">
+                                    <CheckCircle className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-emerald-400 font-black text-sm uppercase mb-1">GO (Lampu Hijau)</h4>
+                                    <p className="text-xs text-gray-300 leading-relaxed font-medium">
+                                        **Syarat:** Skor {'>'}= 7.0 DAN RR Ratio {'>'}= 2.0.
+                                        <br />
+                                        Keputusan paling kukuh. Persediaan (Setup) sudah matang dan potensi untung sangan berbaloi berbanding risiko.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* WAIT / QUE */}
+                            <div className="flex gap-4 p-5 bg-yellow-500/10 rounded-2xl border border-yellow-500/20 items-start group hover:bg-yellow-500/20 transition-all">
+                                <div className="p-2 rounded-xl bg-yellow-500/20 text-yellow-500 border border-yellow-500/50">
+                                    <Loader2 className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-yellow-500 font-black text-sm uppercase mb-1">WAIT / QUE</h4>
+                                    <p className="text-xs text-gray-300 leading-relaxed font-medium">
+                                        **Syarat:** Skor {'>'}= 7.0 TAPI RR Ratio {'<'}. 2.0.
+                                        <br />
+                                        Saham ini bagus, tetapi harga sudah mula "lari". Jangan kejar (chasing). Beratur (Que) di harga sokongan yang diberikan.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* NEUTRAL */}
+                            <div className="flex gap-4 p-5 bg-gray-500/10 rounded-2xl border border-white/5 items-start group hover:bg-white/5 transition-all">
+                                <div className="p-2 rounded-xl bg-gray-500/20 text-gray-400 border border-gray-500/50">
+                                    <Activity className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-gray-400 font-black text-sm uppercase mb-1">NEUTRAL</h4>
+                                    <p className="text-xs text-gray-400 leading-relaxed font-medium">
+                                        **Syarat:** Skor antara 5.0 - 7.0.
+                                        <br />
+                                        Isyarat belum cukup kuat. Mungkin volume masih rendah atau trend belum sah. Letakkan dalam "Watchlist" dan monitor dahulu.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* AVOID */}
+                            <div className="flex gap-4 p-5 bg-red-500/10 rounded-2xl border border-red-500/20 items-start group hover:bg-red-500/20 transition-all">
+                                <div className="p-2 rounded-xl bg-red-500/20 text-red-500 border border-red-500/50 text-red-500 shadow-lg shadow-red-500/10">
+                                    <AlertOctagon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-red-500 font-black text-sm uppercase mb-1">AVOID (Bahaya)</h4>
+                                    <p className="text-xs text-gray-300 leading-relaxed font-medium">
+                                        **Syarat:** Skor {'<'} 5.0 ATAU Ada "Reject Reason" (contoh: Freefall / Illiquid).
+                                        <br />
+                                        Risiko sangat tinggi. Elakkan masuk buat masa ini untuk mengelakkan modal tersekat lama.
+                                    </p>
                                 </div>
                             </div>
                         </div>

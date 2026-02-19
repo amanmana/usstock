@@ -11,6 +11,10 @@
 [functions.scheduled-sync]
   schedule = "10 10 * * *"
 
+# Runs every 30 mins during market hours
+[functions.telegram-worker]
+  schedule = "*/30 1-9 * * 1-5"
+
 # Redirects for Single Page App
 [[redirects]]
   from = "/*"
