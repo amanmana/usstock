@@ -4,6 +4,55 @@ import { format } from 'date-fns';
 import StockChart from './StockChart';
 import { PositionManager } from './PositionManager';
 
+const GaugeMeter = ({ value, label, color }) => {
+    const angle = (value / 100) * 180 - 90;
+
+    // Determine color scale for the gradient
+    return (
+        <div className="relative flex flex-col items-center w-full max-w-[120px]">
+            <svg width="100%" viewBox="0 0 100 55" className="overflow-visible">
+                <defs>
+                    <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#ef4444" />
+                        <stop offset="50%" stopColor="#94a3b8" />
+                        <stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                </defs>
+                {/* Background Arc */}
+                <path
+                    d="M 10 50 A 40 40 0 0 1 90 50"
+                    fill="none"
+                    stroke="rgba(255,255,255,0.05)"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                />
+                {/* Colored Track */}
+                <path
+                    d="M 10 50 A 40 40 0 0 1 90 50"
+                    fill="none"
+                    stroke="url(#gaugeGradient)"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray="125.66"
+                    strokeDashoffset={125.66}
+                    className="opacity-10"
+                />
+                {/* Active Segment Dot/Line (Optional visual polish) */}
+                <circle cx="50" cy="50" r="41" fill="none" stroke={color} strokeWidth="1" strokeDasharray="1, 8" className="opacity-30" />
+
+                {/* Needle */}
+                <g transform={`rotate(${angle}, 50, 50)`} className="transition-transform duration-1000 ease-out">
+                    <line x1="50" y1="50" x2="50" y2="15" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+                    <circle cx="50" cy="50" r="3.5" fill="white" />
+                </g>
+            </svg>
+            <div className={`text-[10px] font-black uppercase tracking-wider mt-2 px-3 py-0.5 rounded-full border border-white/5 bg-white/5 text-center truncate w-full shadow-lg transition-colors duration-500`} style={{ color: color }}>
+                {label}
+            </div>
+        </div>
+    );
+};
+
 export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTickers = [], favouriteDetails = {}, onToggleFavourite, onToggleAlert, positions = {}, onSavePosition, onRemovePosition, onSellPosition }) {
     const [historyData, setHistoryData] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
@@ -599,117 +648,139 @@ export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTick
                                         : "Trend menaik masih ada, tetapi tunggu isyarat harga yang lebih jelas untuk masuk.";
                                 }
 
+                                // Gauge Value Calculation
+                                let verdictValue = 50; // Neutral
+                                if (verdict === "GO" || verdict === "HOLD") verdictValue = 90;
+                                else if (verdict === "WAIT / QUE" || verdict === "HOLD / SELL HALF") verdictValue = 70;
+                                else if (verdict === "AVOID" || verdict === "STRONG SELL / CUT") verdictValue = 10;
+                                else if (verdict === "NEUTRAL" || verdict === "MONITOR") verdictValue = 50;
+                                else if (verdict === "MONITOR / TP") verdictValue = 40;
+
                                 return (
-                                    <div className={`${bg} border rounded-xl p-5 relative overflow-hidden group`}>
-                                        <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-4 relative z-10">
-                                            <div className="flex flex-col">
-                                                <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">
-                                                    {isMomentumFocus ? "Momentum System" : "Rebound System"}
-                                                </h3>
-                                                <div className="flex items-baseline gap-2">
-                                                    <span className={`text-xl font-black ${text}`}>{rec}</span>
-                                                    <span className="text-[10px] font-mono text-gray-500 opacity-60">{conviction}% Confidence</span>
+                                    <>
+                                        {/* Technical Gauges Section */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-surfaceHighlight/30 rounded-2xl p-4 border border-white/5 flex flex-col items-center">
+                                                <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Technical Decision</h4>
+                                                <GaugeMeter value={verdictValue} label={verdict} color={vColor.includes('emerald') ? '#10b981' : (vColor.includes('red') ? '#ef4444' : (vColor.includes('yellow') ? '#fbbf24' : '#94a3b8'))} />
+                                            </div>
+                                            <div className="bg-surfaceHighlight/30 rounded-2xl p-4 border border-white/5 flex flex-col items-center">
+                                                <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Signal Confidence</h4>
+                                                <GaugeMeter value={conviction} label={`${conviction}%`} color="#3b82f6" />
+                                            </div>
+                                        </div>
+
+                                        <div className={`rounded-[2rem] p-6 md:p-8 border relative overflow-hidden transition-all duration-500 ${bg}`}>
+                                            <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-4 relative z-10">
+                                                <div className="flex flex-col">
+                                                    <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">
+                                                        {isMomentumFocus ? "Momentum System" : "Rebound System"}
+                                                    </h3>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className={`text-xl font-black ${text}`}>{rec}</span>
+                                                        <span className="text-[10px] font-mono text-gray-500 opacity-60">{conviction}% Confidence</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Decision Verdict Badge */}
+                                                <div className="flex items-center gap-2">
+                                                    {/* Telegram Alert Toggle */}
+                                                    {favouriteTickers.includes(stock.ticker) && (
+                                                        <button
+                                                            onClick={() => onToggleAlert(stock.ticker, !favouriteDetails[stock.ticker]?.alert_enabled)}
+                                                            className={`p-2 rounded-xl border-2 transition-all duration-300 ${favouriteDetails[stock.ticker]?.alert_enabled
+                                                                ? 'bg-primary/20 text-primary border-primary shadow-[0_0_15px_rgba(59,130,246,0.3)] animate-pulse'
+                                                                : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/20'}`}
+                                                            title={favouriteDetails[stock.ticker]?.alert_enabled ? "Alert Telegram Aktif" : "Aktifkan Alert Telegram"}
+                                                        >
+                                                            {favouriteDetails[stock.ticker]?.alert_enabled ? <Bell className="w-5 h-5 fill-current" /> : <BellOff className="w-5 h-5" />}
+                                                        </button>
+                                                    )}
+
+                                                    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-black text-sm shadow-xl transition-all duration-500 ${vColor}`}>
+                                                        {vIcon}
+                                                        {verdict}
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            {/* Decision Verdict Badge */}
-                                            <div className="flex items-center gap-2">
-                                                {/* Telegram Alert Toggle */}
-                                                {favouriteTickers.includes(stock.ticker) && (
-                                                    <button
-                                                        onClick={() => onToggleAlert(stock.ticker, !favouriteDetails[stock.ticker]?.alert_enabled)}
-                                                        className={`p-2 rounded-xl border-2 transition-all duration-300 ${favouriteDetails[stock.ticker]?.alert_enabled
-                                                            ? 'bg-primary/20 text-primary border-primary shadow-[0_0_15px_rgba(59,130,246,0.3)] animate-pulse'
-                                                            : 'bg-white/5 text-gray-500 border-white/10 hover:border-white/20'}`}
-                                                        title={favouriteDetails[stock.ticker]?.alert_enabled ? "Alert Telegram Aktif" : "Aktifkan Alert Telegram"}
-                                                    >
-                                                        {favouriteDetails[stock.ticker]?.alert_enabled ? <Bell className="w-5 h-5 fill-current" /> : <BellOff className="w-5 h-5" />}
-                                                    </button>
+                                            <div className="absolute top-0 right-0 p-2 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
+                                                {isMomentumFocus ? <TrendingUp className="w-16 h-16 -mr-4 -mt-4 rotate-12" /> : <BarChart2 className="w-16 h-16 -mr-4 -mt-4 rotate-12" />}
+                                            </div>
+                                            <p className="text-[13px] text-gray-300 leading-relaxed font-medium">
+                                                {description}
+                                            </p>
+
+                                            {(() => {
+                                                const rDays = intradayAnalysis?.alignment?.rallyDays;
+                                                const pDays = intradayAnalysis?.alignment?.pullbackDays;
+                                                const currentRR = stock.levels?.rr1 || 0;
+                                                let subAdvice = null;
+                                                let subColor = "text-blue-400";
+
+                                                if (rDays > 0) {
+                                                    if (rDays <= 2) {
+                                                        if (currentRR < 1.5) {
+                                                            subAdvice = `Rally baru bermula (${rDays}H) TAPI RR rendah (${currentRR.toFixed(2)}). Berisiko untuk 'chasing', lebih baik tunggu pullback untuk RR yang lebih cantik.`;
+                                                            subColor = "text-orange-400";
+                                                        } else {
+                                                            subAdvice = `Fasa Breakout Awal (${rDays}H). RR sangat menarik (${currentRR.toFixed(2)}). Peluang masuk yang berkualiti jika volume kuat.`;
+                                                            subColor = "text-emerald-400";
+                                                        }
+                                                    } else if (rDays === 3) {
+                                                        if (currentRR < 1.2) {
+                                                            subAdvice = `Trend sudah kuat (3H), tapi harga sudah mula menjauhi Stop-Loss (RR: ${currentRR.toFixed(2)}). Risiko mula meningkat.`;
+                                                            subColor = "text-orange-400";
+                                                        } else {
+                                                            subAdvice = `Sweet Spot! Trend 3 hari sudah sah. Waktu terbaik untuk Swing dengan RR ${currentRR.toFixed(2)}.`;
+                                                            subColor = "text-emerald-400";
+                                                        }
+                                                    } else {
+                                                        subAdvice = `Overextended! Rally sudah ${rDays} hari. Elak FOMO kerana risiko jualan tiba-tiba adalah tinggi.`;
+                                                        subColor = "text-orange-400";
+                                                    }
+                                                } else if (pDays > 0) {
+                                                    if (pDays <= 2) {
+                                                        subAdvice = `Pullback Sihat (${pDays}H). Perhatikan jika harga bertahan di atas Support. RR semasa: ${currentRR.toFixed(2)}.`;
+                                                        subColor = "text-orange-400";
+                                                    } else {
+                                                        subAdvice = `Trend Jualan Kuat (${pDays}H). Elak 'tangkap pisau jatuh'. Tunggu isyarat rebound sebelum masuk.`;
+                                                        subColor = "text-red-400";
+                                                    }
+                                                }
+
+                                                if (!subAdvice) return null;
+
+                                                return (
+                                                    <div className="mt-3 pt-3 border-t border-white/10 flex gap-2 items-start">
+                                                        <Info className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${subColor}`} />
+                                                        <p className={`text-[11px] font-bold leading-tight ${subColor}`}>
+                                                            {subAdvice}
+                                                        </p>
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            <div className="mt-4 flex gap-2">
+                                                {stock.stats.rsi14 < 35 && <span className="text-[9px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded border border-green-500/20 font-bold uppercase">Oversold</span>}
+                                                {stock.signals?.includes('REBOUND') && <span className="text-[9px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-bold uppercase">Rebound</span>}
+                                                {stock.signals?.includes('MOMENTUM') && <span className="text-[9px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded border border-orange-500/20 font-bold uppercase">Momentum</span>}
+                                                {stock.isMinervini && <span className="text-[9px] bg-accent/20 text-accent px-2 py-0.5 rounded border border-accent/20 font-bold uppercase">Minervini Setup</span>}
+                                                {stock.isMASupport && <span className="text-[9px] bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20 font-bold uppercase">MA Support</span>}
+                                                {stock.stats.ma20 > stock.close && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded border border-yellow-500/20 font-bold uppercase">Bawah MA20</span>}
+                                                {intradayAnalysis?.alignment?.pullbackDays > 0 && (
+                                                    <span className={`text-[9px] px-2 py-0.5 rounded border font-bold uppercase ${intradayAnalysis.alignment.pullbackDays >= 3 ? 'bg-red-500/20 text-red-400 border-red-500/20' : 'bg-orange-500/20 text-orange-400 border-orange-500/20'}`}>
+                                                        Pullback: {intradayAnalysis.alignment.pullbackDays} Hari
+                                                    </span>
                                                 )}
-
-                                                <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-black text-sm shadow-xl transition-all duration-500 ${vColor}`}>
-                                                    {vIcon}
-                                                    {verdict}
-                                                </div>
+                                                {intradayAnalysis?.alignment?.rallyDays > 0 && (
+                                                    <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-bold uppercase">
+                                                        Rally: {intradayAnalysis.alignment.rallyDays} Hari
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
-
-                                        <div className="absolute top-0 right-0 p-2 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
-                                            {isMomentumFocus ? <TrendingUp className="w-16 h-16 -mr-4 -mt-4 rotate-12" /> : <BarChart2 className="w-16 h-16 -mr-4 -mt-4 rotate-12" />}
-                                        </div>
-                                        <p className="text-[13px] text-gray-300 leading-relaxed font-medium">
-                                            {description}
-                                        </p>
-
-                                        {(() => {
-                                            const rDays = intradayAnalysis?.alignment?.rallyDays;
-                                            const pDays = intradayAnalysis?.alignment?.pullbackDays;
-                                            const currentRR = stock.levels?.rr1 || 0;
-                                            let subAdvice = null;
-                                            let subColor = "text-blue-400";
-
-                                            if (rDays > 0) {
-                                                if (rDays <= 2) {
-                                                    if (currentRR < 1.5) {
-                                                        subAdvice = `Rally baru bermula (${rDays}H) TAPI RR rendah (${currentRR.toFixed(2)}). Berisiko untuk 'chasing', lebih baik tunggu pullback untuk RR yang lebih cantik.`;
-                                                        subColor = "text-orange-400";
-                                                    } else {
-                                                        subAdvice = `Fasa Breakout Awal (${rDays}H). RR sangat menarik (${currentRR.toFixed(2)}). Peluang masuk yang berkualiti jika volume kuat.`;
-                                                        subColor = "text-emerald-400";
-                                                    }
-                                                } else if (rDays === 3) {
-                                                    if (currentRR < 1.2) {
-                                                        subAdvice = `Trend sudah kuat (3H), tapi harga sudah mula menjauhi Stop-Loss (RR: ${currentRR.toFixed(2)}). Risiko mula meningkat.`;
-                                                        subColor = "text-orange-400";
-                                                    } else {
-                                                        subAdvice = `Sweet Spot! Trend 3 hari sudah sah. Waktu terbaik untuk Swing dengan RR ${currentRR.toFixed(2)}.`;
-                                                        subColor = "text-emerald-400";
-                                                    }
-                                                } else {
-                                                    subAdvice = `Overextended! Rally sudah ${rDays} hari. Elak FOMO kerana risiko jualan tiba-tiba adalah tinggi.`;
-                                                    subColor = "text-orange-400";
-                                                }
-                                            } else if (pDays > 0) {
-                                                if (pDays <= 2) {
-                                                    subAdvice = `Pullback Sihat (${pDays}H). Perhatikan jika harga bertahan di atas Support. RR semasa: ${currentRR.toFixed(2)}.`;
-                                                    subColor = "text-orange-400";
-                                                } else {
-                                                    subAdvice = `Trend Jualan Kuat (${pDays}H). Elak 'tangkap pisau jatuh'. Tunggu isyarat rebound sebelum masuk.`;
-                                                    subColor = "text-red-400";
-                                                }
-                                            }
-
-                                            if (!subAdvice) return null;
-
-                                            return (
-                                                <div className="mt-3 pt-3 border-t border-white/10 flex gap-2 items-start">
-                                                    <Info className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${subColor}`} />
-                                                    <p className={`text-[11px] font-bold leading-tight ${subColor}`}>
-                                                        {subAdvice}
-                                                    </p>
-                                                </div>
-                                            );
-                                        })()}
-
-                                        <div className="mt-4 flex gap-2">
-                                            {stock.stats.rsi14 < 35 && <span className="text-[9px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded border border-green-500/20 font-bold uppercase">Oversold</span>}
-                                            {stock.signals?.includes('REBOUND') && <span className="text-[9px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-bold uppercase">Rebound</span>}
-                                            {stock.signals?.includes('MOMENTUM') && <span className="text-[9px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded border border-orange-500/20 font-bold uppercase">Momentum</span>}
-                                            {stock.isMinervini && <span className="text-[9px] bg-accent/20 text-accent px-2 py-0.5 rounded border border-accent/20 font-bold uppercase">Minervini Setup</span>}
-                                            {stock.isMASupport && <span className="text-[9px] bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20 font-bold uppercase">MA Support</span>}
-                                            {stock.stats.ma20 > stock.close && <span className="text-[9px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded border border-yellow-500/20 font-bold uppercase">Bawah MA20</span>}
-                                            {intradayAnalysis?.alignment?.pullbackDays > 0 && (
-                                                <span className={`text-[9px] px-2 py-0.5 rounded border font-bold uppercase ${intradayAnalysis.alignment.pullbackDays >= 3 ? 'bg-red-500/20 text-red-400 border-red-500/20' : 'bg-orange-500/20 text-orange-400 border-orange-500/20'}`}>
-                                                    Pullback: {intradayAnalysis.alignment.pullbackDays} Hari
-                                                </span>
-                                            )}
-                                            {intradayAnalysis?.alignment?.rallyDays > 0 && (
-                                                <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-bold uppercase">
-                                                    Rally: {intradayAnalysis.alignment.rallyDays} Hari
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
+                                    </>
                                 );
                             })()}
 
@@ -809,7 +880,7 @@ export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTick
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </div >
                     </div>
                 </div>
 
