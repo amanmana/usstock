@@ -419,6 +419,31 @@ const HelpPage = () => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* New: Confidence Level Explanation */}
+                        <div className="mt-8 bg-primary/5 rounded-3xl p-6 md:p-8 border border-primary/20">
+                            <div className="flex items-start gap-4">
+                                <div className="p-3 bg-primary/10 rounded-2xl">
+                                    <Activity className="w-6 h-6 text-primary" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-white mb-2">Apa itu "Confidence Level"?</h3>
+                                    <p className="text-gray-400 text-sm leading-relaxed mb-4">
+                                        Meter ini menunjukkan **Kualiti Isyarat (Signal Quality)**. Ia mengukur sejauh mana keadaan teknikal saham sekarang menepati kriteria "Ideal" sistem kita.
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                        <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                                            <div className="text-emerald-400 font-bold text-sm mb-1">Confidence Tinggi (80% - 99%)</div>
+                                            <p className="text-[11px] text-gray-500">Semua kriteria (RSI, Volume, Trend, RR) berada dalam keadaan "terbaik" dan selari. Setup yang sangat berkualiti.</p>
+                                        </div>
+                                        <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                                            <div className="text-yellow-400 font-bold text-sm mb-1">Confidence Sederhana (50% - 70%)</div>
+                                            <p className="text-[11px] text-gray-500">Setup yang baik, tetapi mungkin ada satu kriteria yang sedikit "lemah" (contoh: Volume belum cukup kuat atau harga sudah mula menjauhi support).</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </Section>
 
                     {/* SUPPORT & RESISTANCE */}
