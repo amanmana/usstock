@@ -685,65 +685,76 @@ export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTick
                                 return (
                                     <>
                                         {/* Technical Gauges Section */}
-                                        <div className="grid grid-cols-2 gap-4 mb-4">
-                                            <div className="bg-surfaceHighlight/30 rounded-2xl p-4 border border-white/5 flex flex-col items-center justify-center">
-                                                <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Technical Decision</h4>
-                                                <GaugeMeter value={verdictValue} label={verdict} color={vColor.includes('emerald') ? '#10b981' : (vColor.includes('red') ? '#ef4444' : (vColor.includes('yellow') ? '#fbbf24' : '#94a3b8'))} />
+                                        <div className="bg-[#151515] rounded-3xl p-6 lg:p-8 border border-white/5 flex flex-col items-center mb-6 shadow-2xl">
+                                            <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Technical Decision</h4>
+
+                                            {/* Big Gauge */}
+                                            <div className="w-full flex flex-col items-center justify-center mb-8 relative">
+                                                <div className="scale-110 mb-2">
+                                                    <GaugeMeter
+                                                        value={verdictValue}
+                                                        label={verdict}
+                                                        color={vColor.includes('emerald') ? '#10b981' : (vColor.includes('red') ? '#ef4444' : (vColor.includes('yellow') ? '#fbbf24' : '#94a3b8'))}
+                                                        isPortfolio={!!pos}
+                                                    />
+                                                </div>
+
+                                                <div className={`mt-2 flex items-center justify-center px-6 py-2.5 rounded-full border-2 font-black text-sm transition-all duration-500 shadow-xl ${vColor}`}>
+                                                    {verdict}
+                                                </div>
                                             </div>
-                                            <div className="bg-surfaceHighlight/30 rounded-2xl p-4 border border-white/5 flex flex-col items-center justify-center">
-                                                <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Signal Confidence</h4>
-                                                <GaugeMeter value={conviction} label={`${conviction}%`} color="#3b82f6" />
+
+                                            {/* HA Confirmation Cards */}
+                                            <div className="grid grid-cols-2 gap-4 w-full mb-8">
+                                                <div className="flex flex-col items-center justify-center py-5 px-3 bg-[#1c1c1c] rounded-[1.25rem] border border-white/[0.03]">
+                                                    <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">1D HA Conf</h4>
+                                                    <div className={`text-[10px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 border transition-colors ${stock.heikinAshiGo ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/5 text-gray-400 border-white/5'}`}>
+                                                        <Activity className="w-3.5 h-3.5" />
+                                                        {stock.heikinAshiGo ? "GO" : "WAIT"}
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-center justify-center py-5 px-3 bg-[#1c1c1c] rounded-[1.25rem] border border-white/[0.03]">
+                                                    <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">4H HA Conf</h4>
+                                                    <div className={`text-[10px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 border transition-colors ${loadingIntraday ? 'bg-white/5 text-gray-400 border-white/5' : (intradayAnalysis?.ha4h?.status === 'GO' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/5 text-gray-400 border-white/5')}`}>
+                                                        {loadingIntraday ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
+                                                        {loadingIntraday ? "LOADING" : (intradayAnalysis?.ha4h?.status === 'GO' ? "GO" : "WAIT")}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        {/* Double GO Checklist */}
-                                        <div className="w-full bg-surfaceHighlight/30 rounded-2xl p-4 border border-white/5 mb-6">
-                                            <h5 className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-3 flex items-center justify-between">
-                                                <span>Double GO Checklist</span>
-                                                {(verdict === "DOUBLE GO") && <span className="text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full text-[8px] flex items-center gap-1"><Zap className="w-3 h-3 fill-emerald-400" /> PASSED</span>}
-                                            </h5>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                                {/* Score */}
-                                                <div className="flex bg-black/20 rounded-xl p-2.5 items-center justify-between border border-white/5">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Score ≥ 7</span>
-                                                        <span className={`text-xs font-black ${scoreToUse >= 7.0 ? "text-emerald-400" : "text-gray-300"}`}>{scoreToUse.toFixed(1)}</span>
-                                                    </div>
-                                                    <div className={`w-2 h-2 rounded-full ${scoreToUse >= 7.0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 border border-red-900/50 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
-                                                </div>
+                                            {/* System Conviction */}
+                                            <div className="flex flex-col items-center w-full pt-8 border-t border-white/5 relative">
+                                                <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.15em] mb-2">System Conviction</h4>
+                                                <div className="text-3xl font-black text-blue-400">{conviction}%</div>
 
-                                                {/* RR */}
-                                                <div className="flex bg-black/20 rounded-xl p-2.5 items-center justify-between border border-white/5">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">RR ≥ 2</span>
-                                                        <span className={`text-xs font-black ${rrNum >= 2.0 ? "text-emerald-400" : "text-gray-300"}`}>{rrNum.toFixed(2)}</span>
+                                                {/* Double GO Checklist Dots */}
+                                                <div className="mt-4 flex flex-row items-center justify-center gap-4 border border-white/5 bg-black/20 px-4 py-2 rounded-full">
+                                                    {/* Score */}
+                                                    <div className="flex flex-col items-center gap-1.5">
+                                                        <div className={`w-2.5 h-2.5 rounded-full ${scoreToUse >= 7.0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500/50'}`}></div>
+                                                        <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider">SCORE</span>
                                                     </div>
-                                                    <div className={`w-2 h-2 rounded-full ${rrNum >= 2.0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 border border-red-900/50 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
-                                                </div>
-
-                                                {/* 1D HA */}
-                                                <div className="flex bg-black/20 rounded-xl p-2.5 items-center justify-between border border-white/5">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">1D HA Conf</span>
-                                                        <span className={`text-xs font-black line-clamp-1 ${stock.heikinAshiGo ? "text-emerald-400" : "text-red-400"}`}>{stock.heikinAshiGo ? "Hijau" : "Wait"}</span>
+                                                    <div className="w-px h-6 bg-white/5 relative -top-0.5"></div>
+                                                    {/* RR */}
+                                                    <div className="flex flex-col items-center gap-1.5">
+                                                        <div className={`w-2.5 h-2.5 rounded-full ${rrNum >= 2.0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500/50'}`}></div>
+                                                        <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider">RR</span>
                                                     </div>
-                                                    <div className={`w-2 h-2 rounded-full ${stock.heikinAshiGo ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 border border-red-900/50 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
-                                                </div>
-
-                                                {/* 4H HA */}
-                                                <div className="flex bg-black/20 rounded-xl p-2.5 items-center justify-between border border-white/5 relative overflow-hidden">
-                                                    <div className="flex flex-col z-10 relative">
-                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">4H HA Conf</span>
-                                                        <span className={`text-[10px] font-black line-clamp-1 ${intradayAnalysis?.ha4h?.status === 'GO' ? "text-emerald-400" : (loadingIntraday ? "text-gray-400" : "text-red-400")}`}>
-                                                            {loadingIntraday ? "Loading..." : (intradayAnalysis?.ha4h?.status === 'GO' ? "Hijau" : "Wait")}
-                                                        </span>
+                                                    <div className="w-px h-6 bg-white/5 relative -top-0.5"></div>
+                                                    {/* 1D HA */}
+                                                    <div className="flex flex-col items-center gap-1.5">
+                                                        <div className={`w-2.5 h-2.5 rounded-full ${stock.heikinAshiGo ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500/50'}`}></div>
+                                                        <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider">1D HA</span>
                                                     </div>
-                                                    <div className="z-10 relative">
+                                                    <div className="w-px h-6 bg-white/5 relative -top-0.5"></div>
+                                                    {/* 4H HA */}
+                                                    <div className="flex flex-col items-center gap-1.5">
                                                         {loadingIntraday ? (
-                                                            <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />
+                                                            <div className="w-2.5 h-2.5 rounded-full bg-gray-500 animate-pulse"></div>
                                                         ) : (
-                                                            <div className={`w-2 h-2 rounded-full ${intradayAnalysis?.ha4h?.status === 'GO' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 border border-red-900/50 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
+                                                            <div className={`w-2.5 h-2.5 rounded-full ${intradayAnalysis?.ha4h?.status === 'GO' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500/50'}`}></div>
                                                         )}
+                                                        <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider">4H HA</span>
                                                     </div>
                                                 </div>
                                             </div>
