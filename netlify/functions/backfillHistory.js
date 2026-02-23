@@ -1,17 +1,21 @@
-import { supabase } from './utils/supabaseClient';
+import { supabase } from './utils/supabaseClient.js';
 import axios from 'axios';
+import { analyzeStock } from './utils/indicators.js';
+import { getComputeUniverse } from './utils/universe.js';
 
 /**
- * Netlify Function to backfill 6 months of historical data for the Top 300 stocks.
- * Can be triggered manually or via a scheduled task.
+ * Netlify Function to backfill historical data for all active stocks.
+ * This is crucial for new setups to ensure technical indicators can be calculated.
  */
 export const handler = async (event, context) => {
     try {
-        // 1. Get Top 300 stocks
+        const offset = parseInt(event.queryStringParameters?.offset || '0');
+        const batchSize = 50;
+
+        // 1. Get all active stocks
         const { data: stocks, error: fetchError } = await supabase
             .from('klse_stocks')
             .select('ticker_full, ticker_code')
-            .eq('is_top300', true)
             .eq('is_active', true);
 
         if (fetchError) throw fetchError;
@@ -19,15 +23,28 @@ export const handler = async (event, context) => {
             return { statusCode: 200, body: 'No stocks to backfill' };
         }
 
-        const stats = { total: stocks.length, success: 0, failed: 0 };
-        const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (HTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
+        const stats = { total: stocks.length, success: 0, failed: 0, skipped: 0 };
+        const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (HTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-        // Process in small batches to avoid timeouts
-        // Note: For a full 300 stocks, this might need multiple runs or a longer timeout
-        for (const stock of stocks) {
+        // Process batch based on offset
+        const batch = stocks.slice(offset, offset + batchSize);
+
+        for (const stock of batch) {
             try {
+                // Check if history already exists (quick check)
+                const { count } = await supabase
+                    .from('klse_prices_daily')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('ticker_full', stock.ticker_full);
+
+                if (count > 20) {
+                    stats.skipped++;
+                    continue; // Already has history
+                }
+
                 const symbol = stock.ticker_full;
-                const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=6mo&interval=1d`;
+                // Fetch 1 year of history for better indicators
+                const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1d`;
 
                 const { data: yData } = await axios.get(url, {
                     headers: { 'User-Agent': USER_AGENT },
@@ -40,12 +57,20 @@ export const handler = async (event, context) => {
                     const quotes = result.indicators.quote[0];
                     const updates = [];
 
-                    for (let i = 0; i < (timestamps?.length || 0); i++) {
+                    if (!timestamps) {
+                        stats.failed++;
+                        continue;
+                    }
+
+                    for (let i = 0; i < timestamps.length; i++) {
                         const date = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
                         if (quotes.close[i] != null) {
                             updates.push({
                                 ticker_full: symbol,
                                 price_date: date,
+                                open: quotes.open[i] != null ? parseFloat(quotes.open[i].toFixed(3)) : null,
+                                high: quotes.high[i] != null ? parseFloat(quotes.high[i].toFixed(3)) : null,
+                                low: quotes.low[i] != null ? parseFloat(quotes.low[i].toFixed(3)) : null,
                                 close: parseFloat(quotes.close[i].toFixed(3)),
                                 volume: parseInt(quotes.volume[i] || 0),
                                 source: 'yahoo_history_import'
@@ -54,11 +79,16 @@ export const handler = async (event, context) => {
                     }
 
                     if (updates.length > 0) {
-                        const { error: upsertError } = await supabase
-                            .from('klse_prices_daily')
-                            .upsert(updates, { onConflict: 'ticker_full, price_date' });
-
-                        if (upsertError) throw upsertError;
+                        // Chunk updates to avoid large payload errors
+                        const chunkSize = 100;
+                        for (let j = 0; j < updates.length; j += chunkSize) {
+                            const { error: upsertError } = await supabase
+                                .from('klse_prices_daily')
+                                .upsert(updates.slice(j, j + chunkSize), {
+                                    onConflict: 'ticker_full, price_date'
+                                });
+                            if (upsertError) throw upsertError;
+                        }
                         stats.success++;
                     }
                 }
@@ -70,9 +100,17 @@ export const handler = async (event, context) => {
 
         return {
             statusCode: 200,
-            body: JSON.stringify({ message: 'Backfill complete', stats })
+            body: JSON.stringify({
+                message: 'Backfill batch complete',
+                stats: {
+                    ...stats,
+                    batchSize: batch.length,
+                    remaining: stocks.length - batch.length
+                }
+            })
         };
     } catch (err) {
-        return { statusCode: 500, body: err.message };
+        console.error('Backfill Error:', err);
+        return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
     }
 };

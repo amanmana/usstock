@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase } from './supabaseClient.js';
 
 /**
  * Gets the list of tickers that should be synced and computed.
@@ -8,7 +8,7 @@ export async function getComputeUniverse() {
     // 1. Get Top 300 stocks
     const { data: top300 } = await supabase
         .from('klse_stocks')
-        .select('ticker_full, ticker_code, company_name, short_name, shariah_status')
+        .select('ticker_full, ticker_code, company_name, short_name, shariah_status, market')
         .eq('is_top300', true)
         .eq('is_active', true);
 
@@ -28,7 +28,7 @@ export async function getComputeUniverse() {
     if (missingTickers.length > 0) {
         const { data: missingInfo } = await supabase
             .from('klse_stocks')
-            .select('ticker_full, ticker_code, company_name, short_name, shariah_status')
+            .select('ticker_full, ticker_code, company_name, short_name, shariah_status, market')
             .in('ticker_full', missingTickers);
 
         if (missingInfo) {

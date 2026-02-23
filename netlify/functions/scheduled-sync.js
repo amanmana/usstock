@@ -1,6 +1,6 @@
-import { supabase } from './utils/supabaseClient';
-import { fetchStockData } from './utils/scraper';
-import { getComputeUniverse } from './utils/universe';
+import { supabase } from './utils/supabaseClient.js';
+import { fetchStockData } from './utils/scraper.js';
+import { getComputeUniverse } from './utils/universe.js';
 
 /**
  * Scheduled sync for the entire monitored universe (Top 300 + Favourites).
@@ -50,6 +50,9 @@ export const handler = async (event, context) => {
                         updates.push({
                             ticker_full: stock.ticker_full,
                             price_date: data.priceDate,
+                            open: data.open,
+                            high: data.high,
+                            low: data.low,
                             close: data.close,
                             volume: data.volume,
                             source: 'scheduled_scraper_live'

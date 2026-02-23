@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, TrendingUp, BarChart2, ExternalLink, Heart, CheckCircle, Loader2, Info, AlertOctagon, Activity, RefreshCw, Bell, BellOff } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, BarChart2, ExternalLink, Heart, CheckCircle, Loader2, Info, AlertOctagon, Activity, RefreshCw, Bell, BellOff, Zap } from 'lucide-react';
 import { format } from 'date-fns';
 import StockChart from './StockChart';
 import { PositionManager } from './PositionManager';

@@ -155,7 +155,7 @@ export function StockSearch({ onSelect, screenerResults, activeTab = 'rebound', 
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onToggleFavourite(stock.ticker_full || `${stock.ticker}.KL`);
+                                            onToggleFavourite(stock.ticker_full || stock.ticker);
                                         }}
                                         className={`p-4 transition-colors group/heart ${isFav ? 'text-red-500' : 'text-gray-600 hover:text-red-400'}`}
                                         title={isFav ? "Remove from Favourites" : "Add to Favourites"}

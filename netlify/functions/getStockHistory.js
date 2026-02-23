@@ -1,4 +1,4 @@
-import { supabase } from './utils/supabaseClient';
+import { supabase } from './utils/supabaseClient.js';
 
 /**
  * Netlify function to fetch historical price data for a specific ticker.

@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Configuration
-SITE_ID="67aeb590-3548-4350-bc29-774350949cf6"
-SUPABASE_URL="https://cgarqnrihsskasbnbbhy.supabase.co"
-SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnYXJxbnJpaHNza2FzYm5iYmh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxODIxMDIsImV4cCI6MjA4NTc1ODEwMn0.mAj7rVLrJX25ixpY9GweCrLSvRB4YD2UDHUvIluyScE"
+SITE_ID="720a9866-c134-4570-aa6c-4e4b2fad6e8c"
+SUPABASE_URL="https://xvgvjwafvqgiyarlthix.supabase.co"
+SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2Z3Zqd2FmdnFnaXlhcmx0aGl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1NTExNjgsImV4cCI6MjA4NzEyNzE2OH0.dHRuXUKNiDQOeW6d2W6v9dVkaoKT4ByEzRKtRBBUvY8"
 
 echo "=========================================="
 echo "   REBOUND SCREENER :: BACKEND SETUP      "
@@ -35,7 +35,7 @@ echo "👉 [Step 3] Configuring Environment..."
 echo ""
 echo "⚠️  SECURITY CHECK: We need the Supabase Service Role Key."
 echo "   This is required for the backend to write to the database."
-echo "   Go to: https://supabase.com/dashboard/project/cgarqnrihsskasbnbbhy/settings/api"
+echo "   Go to: https://supabase.com/dashboard/project/xvgvjwafvqgiyarlthix/settings/api"
 echo "   Copy the 'service_role' key (starts with ey...)"
 echo ""
 read -s -p "Paste SERVICE_ROLE_KEY: " SERVICE_ROLE_KEY

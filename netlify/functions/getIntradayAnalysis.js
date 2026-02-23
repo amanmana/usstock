@@ -1,5 +1,5 @@
-import { fetchIntradayData } from './utils/scraper';
-import { supabase } from './utils/supabaseClient';
+import { fetchIntradayData } from './utils/scraper.js';
+import { supabase } from './utils/supabaseClient.js';
 
 export const handler = async (event, context) => {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'POST required' };
@@ -11,10 +11,11 @@ export const handler = async (event, context) => {
         if (!ticker) return { statusCode: 400, body: 'Missing ticker' };
 
         // 1. Fetch Data for different timeframes
-        const [intraday, daily, weekly] = await Promise.all([
+        const [intraday, daily, weekly, hourly] = await Promise.all([
             fetchIntradayData(ticker, '15m', '5d'),
             fetchIntradayData(ticker, '1d', '3mo'),
-            fetchIntradayData(ticker, '1wk', '1y')
+            fetchIntradayData(ticker, '1wk', '1y'),
+            fetchIntradayData(ticker, '60m', '1mo')
         ]);
 
         if (!intraday || intraday.length < 4) {
@@ -27,7 +28,48 @@ export const handler = async (event, context) => {
         const now = intraday[intraday.length - 1];
         const currentPrice = now.close;
 
-        // 2. MTF Analysis
+        // 2. 4-Hour Aggregation & Heikin Ashi
+        let ha4h = { status: 'WAIT', reason: 'N/A' };
+        if (hourly && hourly.length >= 4) {
+            const h4Candles = [];
+            // Group 60m into 4
+            for (let i = 0; i < hourly.length; i += 4) {
+                const chunk = hourly.slice(i, i + 4);
+                if (chunk.length === 0) continue;
+
+                const open = chunk[0].open;
+                const close = chunk[chunk.length - 1].close;
+                const high = Math.max(...chunk.map(h => h.high));
+                const low = Math.min(...chunk.map(h => h.low));
+                const volume = chunk.reduce((sum, h) => sum + (h.volume || 0), 0);
+
+                h4Candles.push({
+                    open, high, low, close, volume,
+                    date: chunk[chunk.length - 1].date
+                });
+            }
+
+            if (h4Candles.length > 0) {
+                const { computeHeikinAshi } = await import('./utils/indicators.js');
+                const haPrices4h = computeHeikinAshi(h4Candles);
+                if (haPrices4h.length > 0) {
+                    const latest = haPrices4h[haPrices4h.length - 1];
+                    const prev = haPrices4h.length > 1 ? haPrices4h[haPrices4h.length - 2] : null;
+
+                    const isGreen = latest.close > latest.open;
+                    const isStrong = isGreen && latest.noLowerWick;
+                    const isReversal = isGreen && prev && prev.close <= prev.open;
+
+                    ha4h = {
+                        status: isGreen ? 'GO' : 'WAIT',
+                        reason: isReversal ? 'Reversal' : (isStrong ? 'Strong Bullish' : (isGreen ? 'Kekal Hijau' : 'Merah')),
+                        color: isGreen ? 'text-emerald-400' : 'text-red-400'
+                    };
+                }
+            }
+        }
+
+        // 3. MTF Analysis
         // 15m Trend (4h average)
         const last4h = intraday.slice(-16);
         const avg4h = last4h.reduce((acc, p) => acc + p.close, 0) / last4h.length;
@@ -108,6 +150,7 @@ export const handler = async (event, context) => {
                 ticker,
                 currentPrice,
                 alignment,
+                ha4h,
                 scoreMTF,
                 advice,
                 adviceType: type,

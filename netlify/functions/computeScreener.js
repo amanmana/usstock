@@ -1,6 +1,6 @@
-import { supabase } from './utils/supabaseClient';
-import { analyzeStock } from './utils/indicators';
-import { getComputeUniverse } from './utils/universe';
+import { supabase } from './utils/supabaseClient.js';
+import { analyzeStock } from './utils/indicators.js';
+import { getComputeUniverse } from './utils/universe.js';
 
 /**
  * Computes signals for the entire monitored universe (Top 300 + Favourites).
@@ -25,31 +25,63 @@ export const handler = async (event, context) => {
 
         const results = [];
 
-        // 3. Loop and Analyze
-        for (const stock of stocks) {
-            let query = supabase
-                .from('klse_prices_daily')
-                .select('close, volume, price_date, source')
-                .eq('ticker_full', stock.ticker_full)
-                .gte('price_date', limitDate.toISOString());
+        // 3. Fetch all prices for Top 300 + Favourites in bulk with pagination
+        const tickerList = stocks.map(s => s.ticker_full);
 
-            if (!useMock) {
-                query = query.neq('source', 'seed_mock');
+        const allPrices = [];
+        let from = 0;
+        const step = 1000; // Supabase default/max page size
+        let moreData = true;
+
+        while (moreData) {
+            const { data: batch, error: priceError } = await supabase
+                .from('klse_prices_daily')
+                .select('ticker_full, open, high, low, close, volume, price_date, source')
+                .in('ticker_full', tickerList)
+                .gte('price_date', limitDate.toISOString())
+                .range(from, from + step - 1)
+                .order('ticker_full', { ascending: true }) // Stable ordering for pagination
+                .order('price_date', { ascending: true });
+
+            if (priceError) throw priceError;
+
+            if (batch && batch.length > 0) {
+                allPrices.push(...batch);
+                from += batch.length;
+                if (batch.length < step) {
+                    moreData = false;
+                }
+            } else {
+                moreData = false;
             }
 
-            const { data: prices } = await query.order('price_date', { ascending: true });
+            // Safety cap
+            if (from > 100000) break;
+        }
 
+        // Group prices by ticker
+        const priceMap = {};
+        allPrices.forEach(p => {
+            if (!priceMap[p.ticker_full]) priceMap[p.ticker_full] = [];
+            priceMap[p.ticker_full].push(p);
+        });
+
+        // 4. Loop and Analyze
+        for (const stock of stocks) {
+            const prices = priceMap[stock.ticker_full];
             if (!prices || prices.length < 2) continue;
 
-            const priceData = prices.map(p => ({
-                close: p.close,
-                volume: p.volume,
-                date: p.price_date
-            }));
+            const priceData = prices
+                .sort((a, b) => new Date(a.price_date) - new Date(b.price_date))
+                .map(p => ({
+                    open: p.open,
+                    high: p.high,
+                    low: p.low,
+                    close: p.close,
+                    volume: p.volume,
+                    date: p.price_date
+                }));
 
-            // Decide on the best display name
-            // If short_name exists and is not just the numeric code, use it.
-            // Otherwise use company_name.
             const displayName = (stock.short_name && stock.short_name !== stock.ticker_code)
                 ? stock.short_name
                 : (stock.company_name || stock.ticker_code);
@@ -65,11 +97,11 @@ export const handler = async (event, context) => {
                 if (priceData.length < 50) {
                     analysis.historyLabel = 'Incomplete (' + priceData.length + 'd)';
                 }
-                // Tag metadata
                 analysis.isTop300 = top300Set.has(stock.ticker_full);
                 analysis.isShariah = stock.shariah_status === 'SHARIAH';
-                analysis.shariah = analysis.isShariah; // duplicate for safety in filtering
-                analysis.ticker = stock.ticker_full; // Ensure we have the full ticker for mapping
+                analysis.shariah = analysis.isShariah;
+                analysis.ticker = stock.ticker_full;
+                analysis.market = stock.market;
                 results.push(analysis);
             }
         }
@@ -78,11 +110,13 @@ export const handler = async (event, context) => {
         const today = new Date().toISOString().split('T')[0];
 
         // 4. Update Cache (Universal cache for all tracked stocks)
-        // We still keep the old keys for backward compatibility or replace them.
-        // Let's replace the old key content too to keep it working.
-        const legacyKey = useMock ? 'shariah_top300_hybrid' : 'shariah_top300_real';
+        const keys = [
+            cacheKey,                                    // universe_all_real or universe_all_hybrid
+            'shariah_top300_real',                       // Legacy real
+            'shariah_top300_hybrid'                      // Legacy hybrid
+        ];
 
-        for (const key of [cacheKey, legacyKey]) {
+        for (const key of keys) {
             await supabase.from('screener_results_cache')
                 .delete()
                 .eq('as_of_date', today)
@@ -100,7 +134,7 @@ export const handler = async (event, context) => {
 
         return {
             statusCode: 200,
-            body: JSON.stringify({ count: results.length, status: 'computed', mode: mode })
+            body: JSON.stringify({ count: results.length, status: 'computed', mode: useMock ? 'mock' : 'real' })
         };
 
     } catch (err) {

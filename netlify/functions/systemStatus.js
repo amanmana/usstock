@@ -1,4 +1,4 @@
-import { supabase } from './utils/supabaseClient';
+import { supabase } from './utils/supabaseClient.js';
 
 export const handler = async (event, context) => {
     // Helper to get Data Maturity & Last Sync info
@@ -19,7 +19,7 @@ export const handler = async (event, context) => {
             totalDays = stats.total_days_count || 0;
         } else {
             // Fallback to proxy if RPC fails
-            const PROXY_TICKER = '1155.KL';
+            const PROXY_TICKER = 'AAPL';
             const { data: days } = await supabase
                 .from('klse_prices_daily')
                 .select('price_date, source')

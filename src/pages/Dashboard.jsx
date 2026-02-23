@@ -33,13 +33,14 @@ function Dashboard() {
   const { positions, addPosition, removePosition, sellPosition } = usePositions();
 
   const [minScore, setMinScore] = useState("0");
-  const [shariahOnly, setShariahOnly] = useState(true);
+  const [shariahOnly] = useState(true); // Forced true for Shariah-only US system
   const [selectedStock, setSelectedStock] = useState(null);
   const [selectedStrategy, setSelectedStrategy] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [dataMode, setDataMode] = useState('hybrid');
   const [systemStats, setSystemStats] = useState(null);
   const [activeTab, setActiveTab] = useState('rebound'); // 'rebound' or 'momentum'
+  const [livePrices, setLivePrices] = useState({});
 
   useEffect(() => {
     // Fetch system status & handle auto-mode-switch
@@ -57,6 +58,31 @@ function Dashboard() {
       })
       .catch(e => console.error("System Status Fetch Error:", e));
   }, []);
+
+  useEffect(() => {
+    // Fetch real-time prices for positions
+    const tickers = Object.keys(positions);
+    if (tickers.length === 0) return;
+
+    fetch('/.netlify/functions/getLatestPrices', {
+      method: 'POST',
+      body: JSON.stringify({ tickers })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const newPrices = {};
+          data.forEach(p => {
+            // We map ticker explicitly to its close 
+            if (p && p.close) {
+              newPrices[p.ticker] = p.close;
+            }
+          });
+          setLivePrices(newPrices);
+        }
+      })
+      .catch(e => console.error("Error fetching live prices for dashboard:", e));
+  }, [positions]);
 
   const handleModeToggle = async (mode) => {
     setDataMode(mode);
@@ -119,7 +145,7 @@ function Dashboard() {
   const portfolioList = resultsArray.length > 0 ? Object.values(positions).map(pos => {
     const liveStock = resultsArray.find(r => r.ticker === pos.ticker);
     if (!liveStock) return null;
-    const currentPrice = liveStock.close || 0;
+    const currentPrice = livePrices[pos.ticker] || liveStock.close || 0;
     const pl = currentPrice - (pos.entryPrice || 0);
     const plPercent = pos.entryPrice > 0 ? (pl / pos.entryPrice) * 100 : 0;
     return { ...pos, currentPrice, pl, plPercent, company: liveStock.company, fullData: liveStock };
@@ -190,10 +216,10 @@ function Dashboard() {
       <div className="max-w-7xl mx-auto mb-10">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-200 to-gray-500">
-              SCREENER REBOUND
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-200 to-gray-500 uppercase">
+              SHARIAH US SCREENER
             </h1>
-            <p className="mt-2 text-gray-500 font-medium">Peluang Momentum & Pullback di Bursa Malaysia</p>
+            <p className="mt-2 text-gray-500 font-medium">Momentum & Pullback Opportunities in Global Shariah Market</p>
           </div>
 
           <div className="flex items-center gap-4">
@@ -422,46 +448,72 @@ function Dashboard() {
 
       {/* Filters Bar */}
       <div className="max-w-7xl mx-auto mb-8">
-        <div className="flex flex-wrap items-center gap-4 bg-surface p-4 rounded-xl border border-border shadow-sm">
-          <button
-            onClick={() => setShariahOnly(!shariahOnly)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all border ${shariahOnly ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500' : 'bg-surfaceHighlight border-transparent text-gray-400 hover:text-white'}`}
-          >
-            <span className={`w-2 h-2 rounded-full ${shariahOnly ? 'bg-emerald-500 animate-pulse' : 'bg-gray-600'}`}></span>
-            <span className="text-sm font-semibold">Patuh Syariah</span>
-          </button>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-surfaceHighlight/20 p-5 rounded-[2rem] border border-border/50 shadow-2xl backdrop-blur-sm">
 
-          <div className="h-8 w-px bg-border mx-2"></div>
-          <StockSearch
-            onSelect={handleSelectStock}
-            screenerResults={resultsArray}
-            activeTab={activeTab}
-            favouriteTickers={favouriteTickers}
-            onToggleFavourite={toggleFavourite}
-          />
-          <div className="h-8 w-px bg-border mx-2"></div>
+          {/* Left Side: Controls - Expanded to fill space */}
+          <div className="flex-1 flex flex-wrap items-center gap-3 min-w-0">
+            {/* Shariah toggle removed as per request - forced true */}
 
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-gray-400">Min Score:</label>
-            <select
-              value={minScore}
-              onChange={(e) => setMinScore(e.target.value)}
-              className={`
-                text-sm font-bold rounded-lg px-4 py-2 border transition-all focus:ring-2 focus:ring-primary focus:outline-none appearance-none cursor-pointer pr-10 bg-no-repeat bg-[right_12px_center]
-                ${minScore !== "0" ? 'bg-primary/20 border-primary text-primary shadow-[0_0_10px_rgba(59,130,246,0.2)]' : 'bg-surfaceHighlight border-border text-white'}
-              `}
-              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7' /%3E%3C/svg%3E")`, backgroundSize: '1.25rem' }}
-            >
-              <option value="0">Semua Skor</option>
-              <option value="3.0">3.0+ (Watchlist)</option>
-              <option value="5.0">5.0+ (Berpotensi)</option>
-              <option value="7.0">7.0+ (Setup Kuat)</option>
-              <option value="8.5">8.5+ (Pilihan Utama)</option>
-            </select>
+            <div className="h-8 w-px bg-white/5 mx-1 hidden lg:block"></div>
+
+            {/* Search Field - Takes up remaining space */}
+            <div className="flex-1 min-w-[200px]">
+              <StockSearch
+                onSelect={handleSelectStock}
+                screenerResults={resultsArray}
+                activeTab={activeTab}
+                favouriteTickers={favouriteTickers}
+                onToggleFavourite={toggleFavourite}
+              />
+            </div>
+
+            <div className="h-8 w-px bg-white/5 mx-1 hidden lg:block"></div>
+
+            {/* Min Skor - Pushed to the right of Search */}
+            <div className="flex-shrink-0 flex items-center gap-3 bg-surface/40 p-1 pl-4 rounded-2xl border border-white/5 whitespace-nowrap">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Min Skor</label>
+              <select
+                value={minScore}
+                onChange={(e) => setMinScore(e.target.value)}
+                className={`
+                  text-xs font-bold rounded-xl px-4 py-2 transition-all focus:outline-none appearance-none cursor-pointer pr-10 bg-no-repeat bg-[right_12px_center]
+                  ${minScore !== "0" ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-surfaceHighlight/50 text-gray-300 border border-white/5'}
+                `}
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M19 9l-7 7-7-7' /%3E%3C/svg%3E")`, backgroundSize: '0.8rem' }}
+              >
+                <option value="0">Semua</option>
+                <option value="3.0">3.0+</option>
+                <option value="5.0">5.0+</option>
+                <option value="7.0">7.0+</option>
+                <option value="8.5">8.5+</option>
+              </select>
+            </div>
           </div>
 
-          <div className="ml-auto text-sm text-gray-500">
-            Strategi <span className="text-white font-bold uppercase">{activeTab}</span>: <span className="text-white font-bold">{filteredResults.length}</span> calon
+          {/* Right Side: Stats Badges */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4 px-6 py-3 bg-black/40 rounded-[1.5rem] border border-white/5 shadow-inner">
+              <div className="flex flex-col items-center border-r border-white/10 pr-4">
+                <span className="text-[9px] font-black text-gray-600 uppercase tracking-[0.2em] mb-1">Alam (Universe)</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-black text-white leading-none tracking-tighter">{resultsArray.length}</span>
+                  <span className="text-[8px] font-bold text-gray-500 uppercase">Saham</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-start pl-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'rebound' ? 'bg-emerald-500' : 'bg-orange-500'} animate-pulse`}></span>
+                  <span className="text-[9px] font-black text-gray-600 uppercase tracking-[0.2em]">Saringan {activeTab.toUpperCase()}</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className={`text-xl font-black leading-none tracking-tighter ${activeTab === 'rebound' ? 'text-emerald-400' : 'text-orange-400'}`}>
+                    {filteredResults.length}
+                  </span>
+                  <span className="text-[8px] font-bold text-gray-500 uppercase">Calon Lulus</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -644,7 +696,7 @@ const SystemBar = ({ mode, onToggleMode, onRecompute, stats }) => {
 
       <div className="bg-surface border border-border rounded-xl p-5 flex flex-col justify-center shadow-lg relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-20 h-20 bg-green-500/5 rounded-full -mr-10 -mt-10 group-hover:bg-green-500/10 transition-colors"></div>
-        <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2 block">Auto-Sync Terakhir (Cron)</span>
+        <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-2 block">Imbasan Pasaran (Automasi)</span>
         {lastSync ? (
           <div className="relative z-10">
             <div className="text-2xl text-white font-mono font-bold mb-1 tracking-tight">

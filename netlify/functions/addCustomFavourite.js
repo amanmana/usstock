@@ -1,4 +1,4 @@
-import { supabase } from './utils/supabaseClient';
+import { supabase } from './utils/supabaseClient.js';
 import axios from 'axios';
 
 /**
@@ -25,9 +25,6 @@ export const handler = async (event) => {
 
         if (matchedStock) {
             ticker = matchedStock.ticker_full;
-        } else {
-            // Fallback manual normalization
-            if (!ticker.includes('.')) ticker += '.KL';
         }
 
         const tickerCode = ticker.split('.')[0];

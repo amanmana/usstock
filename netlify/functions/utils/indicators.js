@@ -51,8 +51,55 @@ export function computeStdDev(values) {
     return Math.sqrt(avgSqDiff);
 }
 
+export function computeHeikinAshi(prices) {
+    if (!prices || prices.length === 0) return [];
+
+    const haPrices = [];
+    // Start with the first candle's actual OHLC
+    let prevOpen = prices[0].open || prices[0].close;
+    let prevClose = prices[0].close;
+
+    for (let i = 0; i < prices.length; i++) {
+        const { open, high, low, close } = prices[i];
+
+        // Handle missing OHLC data gracefully by falling back to Close
+        const curOpen = open || close;
+        const curHigh = high || close;
+        const curLow = low || close;
+        const curClose = close;
+
+        const haClose = (curOpen + curHigh + curLow + curClose) / 4;
+        const haOpen = i === 0 ? (curOpen + curClose) / 2 : (prevOpen + prevClose) / 2;
+        const haHigh = Math.max(curHigh, haOpen, haClose);
+        const haLow = Math.min(curLow, haOpen, haClose);
+
+        const isGreen = haClose > haOpen;
+        const isRed = haClose < haOpen;
+        const noLowerWick = isGreen && Math.abs(haOpen - haLow) < (haOpen * 0.0005);
+        const noUpperWick = isRed && Math.abs(haOpen - haHigh) < (haOpen * 0.0005);
+
+        haPrices.push({
+            open: haOpen,
+            high: haHigh,
+            low: haLow,
+            close: haClose,
+            isGreen,
+            isRed,
+            noLowerWick,
+            noUpperWick,
+            date: prices[i].date
+        });
+
+        prevOpen = haOpen;
+        prevClose = haClose;
+    }
+    return haPrices;
+}
+
 export function analyzeStock(stockData) {
     const { code, company, prices } = stockData;
+    const haPrices = computeHeikinAshi(prices);
+
     const closes = prices.map(p => p.close);
     const volumes = prices.map(p => p.volume);
 
@@ -250,6 +297,21 @@ export function analyzeStock(stockData) {
     const nearMA200 = ma200 && Math.abs(closeToday - ma200) / ma200 <= 0.015 && closeToday >= ma200;
     const isMASupport = nearMA50 || nearMA200;
 
+    // --- Heikin Ashi Signal ---
+    const latestHA = haPrices.length > 0 ? haPrices[haPrices.length - 1] : null;
+    const prevHA = haPrices.length > 1 ? haPrices[haPrices.length - 2] : null;
+    const isHAGreen = latestHA ? latestHA.isGreen : false;
+    const isHAStrong = latestHA ? latestHA.noLowerWick : false;
+    const isHAReversal = isHAGreen && prevHA && !prevHA.isGreen;
+
+    // HEIKIN-ASHI-GO criteria: Latest HA is Green
+    const heikinAshiGo = isHAGreen === true;
+
+    // Detailed reasons for HA state
+    let haReason = isHAGreen ? "Kekal Hijau" : "Kekal Merah";
+    if (isHAReversal) haReason = "Reversal (Tukar Hijau)";
+    if (isHAStrong) haReason = "Strong Bullish (Tiada Ekor Bawah)";
+
     const signals = [];
     if (scoreA >= 3) signals.push('UPTREND');
     if (scoreB >= 2) signals.push('PULLBACK');
@@ -257,6 +319,7 @@ export function analyzeStock(stockData) {
     if (momentumScore >= 7) signals.push('MOMENTUM');
     if (isMinervini) signals.push('MINERVINI-SETUP');
     if (isMASupport) signals.push('MA-SUPPORT');
+    if (heikinAshiGo) signals.push('HEIKIN-ASHI-GO');
 
     // Recommendation for tab
     const recommendedTab = momentumScore > totalScore ? 'momentum' : 'rebound';
@@ -291,6 +354,9 @@ export function analyzeStock(stockData) {
         momentumScore: parseFloat(momentumScore.toFixed(1)),
         isMinervini,
         isMASupport,
+        heikinAshiGo,
+        haReason,
+        latestHA,
         recommendedTab,
         signals,
         rejectReason,

@@ -1,4 +1,4 @@
-import { supabase } from './utils/supabaseClient';
+import { supabase } from './utils/supabaseClient.js';
 
 export const handler = async () => {
     try {

@@ -1,6 +1,6 @@
-import { supabase } from './utils/supabaseClient';
-import { analyzeStock } from './utils/indicators';
-import { fetchStockData } from './utils/scraper';
+import { supabase } from './utils/supabaseClient.js';
+import { analyzeStock } from './utils/indicators.js';
+import { fetchStockData } from './utils/scraper.js';
 import axios from 'axios';
 
 export const handler = async (event) => {
@@ -15,12 +15,12 @@ export const handler = async (event) => {
             return { statusCode: 500, body: 'Missing Telegram Credentials' };
         }
 
-        // 1. Get all tickers with alerts enabled
+        // 1. Get all tickers with any alert enabled
         const { data: monitored, error: fetchErr } = await supabase
             .from('favourites')
             .select('*')
-            .eq('alert_enabled', true)
-            .eq('is_active', true);
+            .eq('is_active', true)
+            .or('alert_go.eq.true,alert_tp.eq.true,alert_sl.eq.true');
 
         if (fetchErr) throw fetchErr;
         if (!monitored || monitored.length === 0) {
@@ -28,11 +28,19 @@ export const handler = async (event) => {
             return { statusCode: 200, body: 'No monitored stocks.' };
         }
 
+        // 2. Get all active positions for TP/SL checking
+        const { data: positions } = await supabase.from('trading_positions').select('*');
+        const posMap = {};
+        if (positions) {
+            positions.forEach(p => { posMap[p.ticker_full] = p; });
+        }
+
         console.log(`Checking alerts for ${monitored.length} stocks...`);
 
         for (const item of monitored) {
             try {
                 const ticker = item.ticker_full;
+                const pos = posMap[ticker];
 
                 // 2. Fetch Latest Price & History
                 const limitDate = new Date();
@@ -47,7 +55,7 @@ export const handler = async (event) => {
 
                 if (!prices || prices.length < 5) continue;
 
-                // Scrub latest data to ensure we have fresh price
+                // Scrub latest data
                 let liveData = null;
                 try {
                     liveData = await fetchStockData(ticker.split('.')[0]);
@@ -61,67 +69,86 @@ export const handler = async (event) => {
                     date: p.price_date
                 }));
 
-                // Injection live price if exists
                 if (liveData && liveData.close) {
                     const lastIdx = priceData.length - 1;
                     if (priceData[lastIdx].date === liveData.priceDate) {
                         priceData[lastIdx].close = liveData.close;
-                        priceData[lastIdx].volume = liveData.volume;
                     } else {
-                        priceData.push({
-                            close: liveData.close,
-                            volume: liveData.volume,
-                            date: liveData.priceDate
-                        });
+                        priceData.push({ close: liveData.close, volume: liveData.volume, date: liveData.priceDate });
                     }
                 }
 
-                // 3. Run Analysis
+                const currentPrice = priceData[priceData.length - 1].close;
+
+                // 3. Run Technical Analysis
                 const result = analyzeStock({
                     code: ticker.split('.')[0],
-                    company: ticker.split('.')[0], // Placeholder
+                    company: ticker.split('.')[0],
                     prices: priceData
                 });
 
                 if (!result) continue;
 
-                // 4. Decision Verdict Logic
+                // 4. Alert Logic
                 const score = Math.max(result.score, result.momentumScore);
                 const rr = result.levels?.rr1 || 0;
                 let currentVerdict = "NEUTRAL";
-
                 if (score < 5.0) currentVerdict = "AVOID";
                 else if (score >= 7.0) {
                     if (rr >= 2.0) currentVerdict = "GO";
                     else currentVerdict = "WAIT";
                 }
 
-                // 5. Check if we should alert
-                // Alert if it just hit GO and wasn't GO before
-                if (currentVerdict === "GO" && item.last_alert_status !== "GO") {
+                // --- SIGNAL GO ALERT ---
+                if (item.alert_go && currentVerdict === "GO" && item.last_alert_status !== "GO") {
                     console.log(`ALERT: ${ticker} hit GO!`);
-
                     const message = `🚀 *SIGNAL GO: ${ticker}*\n\n` +
-                        `💹 *Price*: RM ${result.close.toFixed(3)}\n` +
+                        `💹 *Price*: RM ${currentPrice.toFixed(3)}\n` +
                         `🎯 *Target*: RM ${result.levels.target1.toFixed(3)}\n` +
                         `🛡️ *Stop*: RM ${result.levels.stopPrice.toFixed(3)}\n` +
-                        `📊 *Score*: ${score.toFixed(1)} (${result.recommendedTab === 'momentum' ? 'Momentum' : 'Rebound'})\n` +
+                        `📊 *Score*: ${score.toFixed(1)}\n` +
                         `⚖️ *RR Ratio*: ${rr.toFixed(2)}\n\n` +
                         `🔗 [View Screener](${process.env.URL || 'https://bursa-rebound-screener.netlify.app'})`;
 
-                    await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                        chat_id: chatId,
-                        text: message,
-                        parse_mode: 'Markdown'
-                    });
+                    await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, { chat_id: chatId, text: message, parse_mode: 'Markdown' });
                 }
 
-                // Update last_alert_status if it changed
+                // --- TARGET PRICE (TP) ALERT ---
+                if (item.alert_tp && pos && pos.target_price > 0 && currentPrice >= pos.target_price) {
+                    // Only alert if we haven't alerted for this price yet (or if price has reset)
+                    if (item.last_tp_price !== currentPrice) {
+                        console.log(`ALERT: ${ticker} hit TP!`);
+                        const pl = ((currentPrice - pos.entry_price) / pos.entry_price * 100).toFixed(2);
+                        const message = `🎯 *TARGET REACHED (TP): ${ticker}*\n\n` +
+                            `💰 *Sell Price*: RM ${currentPrice.toFixed(3)}\n` +
+                            `📈 *Profit*: +${pl}%\n` +
+                            `📝 *Plan*: Target RM ${pos.target_price.toFixed(3)}\n\n` +
+                            `🎉 Masa yang tepat untuk tuai hasil!`;
+
+                        await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, { chat_id: chatId, text: message, parse_mode: 'Markdown' });
+                        await supabase.from('favourites').update({ last_tp_price: currentPrice }).eq('ticker_full', ticker);
+                    }
+                }
+
+                // --- STOP LOSS (SL) ALERT ---
+                if (item.alert_sl && pos && pos.stop_loss > 0 && currentPrice <= pos.stop_loss) {
+                    if (item.last_sl_price !== currentPrice) {
+                        console.log(`ALERT: ${ticker} hit SL!`);
+                        const pl = ((currentPrice - pos.entry_price) / pos.entry_price * 100).toFixed(2);
+                        const message = `🛡️ *STOP LOSS HIT: ${ticker}*\n\n` +
+                            `🚨 *Price*: RM ${currentPrice.toFixed(3)}\n` +
+                            `📉 *Loss*: ${pl}%\n` +
+                            `📝 *Plan*: SL RM ${pos.stop_loss.toFixed(3)}\n\n` +
+                            `⚠️ Disiplin adalah kunci. Kawal risiko anda.`;
+
+                        await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, { chat_id: chatId, text: message, parse_mode: 'Markdown' });
+                        await supabase.from('favourites').update({ last_sl_price: currentPrice }).eq('ticker_full', ticker);
+                    }
+                }
+
+                // Update last_alert_status
                 if (currentVerdict !== item.last_alert_status) {
-                    await supabase
-                        .from('favourites')
-                        .update({ last_alert_status: currentVerdict })
-                        .eq('ticker_full', ticker);
+                    await supabase.from('favourites').update({ last_alert_status: currentVerdict }).eq('ticker_full', ticker);
                 }
 
             } catch (err) {

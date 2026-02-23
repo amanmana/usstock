@@ -1,4 +1,4 @@
-import { fetchStockData } from './utils/scraper';
+import { fetchStockData } from './utils/scraper.js';
 
 export const handler = async (event, context) => {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'POST required' };

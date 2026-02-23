@@ -65,17 +65,19 @@ export function useFavourites() {
         }
     };
 
-    const toggleAlert = async (symbol, enabled) => {
+    const toggleAlert = async (symbol, enabled, settings = null) => {
         // Optimistic UI update
         setFavouriteDetails(prev => ({
             ...prev,
-            [symbol]: { ...prev[symbol], alert_enabled: enabled }
+            [symbol]: settings
+                ? { ...prev[symbol], ...settings, alert_enabled: settings.alert_go || settings.alert_tp || settings.alert_sl }
+                : { ...prev[symbol], alert_enabled: enabled, alert_go: enabled }
         }));
 
         try {
             const res = await fetch('/.netlify/functions/toggleAlert', {
                 method: 'POST',
-                body: JSON.stringify({ symbol, enabled })
+                body: JSON.stringify({ symbol, enabled, settings })
             });
             if (!res.ok) {
                 fetchFavourites();

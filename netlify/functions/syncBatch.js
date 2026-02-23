@@ -1,5 +1,5 @@
-import { supabase } from './utils/supabaseClient';
-import { fetchStockData } from './utils/scraper';
+import { supabase } from './utils/supabaseClient.js';
+import { fetchStockData } from './utils/scraper.js';
 
 export const handler = async (event, context) => {
     if (event.httpMethod !== 'POST') {
@@ -57,6 +57,9 @@ export const handler = async (event, context) => {
                         updates.push({
                             ticker_full: stock.ticker_full,
                             price_date: data.priceDate,
+                            open: data.open,
+                            high: data.high,
+                            low: data.low,
                             close: data.close,
                             volume: data.volume,
                             source: 'yahoo_live'

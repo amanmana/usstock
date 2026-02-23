@@ -1,17 +1,27 @@
-import { supabase } from './utils/supabaseClient';
+import { supabase } from './utils/supabaseClient.js';
 import axios from 'axios';
 
 export const handler = async (event, context) => {
-    // Only allow POST
-    if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'POST required' };
+    // Allow POST and GET for ease of manual backfill
+    if (event.httpMethod !== 'POST' && event.httpMethod !== 'GET') {
+        return { statusCode: 405, body: 'POST or GET required' };
+    }
 
     try {
-        const body = JSON.parse(event.body);
-        const { ticker, name } = body; // e.g. ticker="2429", name="TANCO"
+        let ticker, name;
 
-        if (!ticker || !name) return { statusCode: 400, body: 'Missing ticker or name' };
+        if (event.body) {
+            const body = JSON.parse(event.body);
+            ticker = body.ticker;
+            name = body.name;
+        } else {
+            ticker = event.queryStringParameters?.ticker;
+            name = event.queryStringParameters?.name || ticker;
+        }
 
-        const tickerFull = `${ticker}.KL`;
+        if (!ticker) return { statusCode: 400, body: JSON.stringify({ error: 'Missing ticker' }) };
+
+        const tickerFull = ticker; // US Stocks don't need a suffix for primary exchanges
         console.log(`Importing history for ${tickerFull} (${name})...`);
 
         // 1. Ensure Stock Exists in DB
@@ -19,9 +29,9 @@ export const handler = async (event, context) => {
             .from('klse_stocks')
             .upsert({
                 ticker_full: tickerFull,
-                ticker_code: ticker,
+                ticker_code: tickerFull,
                 company_name: name,
-                shariah_status: 'UNKNOWN', // Default
+                shariah_status: 'SHARIAH', // This function is used to backfill Shariah stocks
                 is_active: true
             }, { onConflict: 'ticker_full' });
 
@@ -49,6 +59,9 @@ export const handler = async (event, context) => {
             const date = new Date(timestamps[i] * 1000);
             const dateStr = date.toISOString().split('T')[0];
 
+            const open = quotes.open[i];
+            const high = quotes.high[i];
+            const low = quotes.low[i];
             const close = quotes.close[i];
             const volume = quotes.volume[i];
 
@@ -56,6 +69,9 @@ export const handler = async (event, context) => {
                 updates.push({
                     ticker_full: tickerFull,
                     price_date: dateStr,
+                    open: open != null ? parseFloat(open.toFixed(3)) : null,
+                    high: high != null ? parseFloat(high.toFixed(3)) : null,
+                    low: low != null ? parseFloat(low.toFixed(3)) : null,
                     close: parseFloat(close.toFixed(3)),
                     volume: parseInt(volume),
                     source: 'yahoo_history_import'

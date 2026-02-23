@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Trash2, TrendingUp, BarChart2, DollarSign, Target, Hash, ShieldAlert, Calculator } from 'lucide-react';
 
-export function PositionManager({ ticker, currentPrice, existingPosition, technicalLevels, recommendedStrategy, onSave, onRemove, onSell }) {
+export function PositionManager({ ticker, currentPrice, market, existingPosition, technicalLevels, recommendedStrategy, onSave, onRemove, onSell }) {
     const [entryPrice, setEntryPrice] = useState(existingPosition?.entryPrice || currentPrice || '');
     const [strategy, setStrategy] = useState(existingPosition?.strategy || recommendedStrategy || 'momentum');
     const [quantity, setQuantity] = useState(existingPosition?.quantity || '');
@@ -52,9 +52,16 @@ export function PositionManager({ ticker, currentPrice, existingPosition, techni
         if (entry <= sl) return { suggestedLots: 0, potentialProfit: 0, totalInvestment: 0, rr: 0 };
 
         const riskPerUnit = entry - sl;
-        const totalUnits = Math.floor(maxRisk / riskPerUnit);
-        const suggestedLots = Math.floor(totalUnits / 100);
-        const actualUnits = suggestedLots * 100;
+
+        // BURSA vs US Logic
+        const isUSMarket = market?.startsWith('US');
+        const lotSize = isUSMarket ? 1 : 100;
+
+        const actualUnits = isUSMarket
+            ? maxRisk / riskPerUnit // Fractional units for US
+            : Math.floor(Math.floor(maxRisk / riskPerUnit) / 100) * 100; // Lot-based for Bursa
+
+        const suggestedLots = isUSMarket ? actualUnits : actualUnits / 100;
 
         const potentialProfit = tp > entry ? (tp - entry) * actualUnits : 0;
         const totalInvestment = entry * actualUnits;
@@ -77,8 +84,9 @@ export function PositionManager({ ticker, currentPrice, existingPosition, techni
     }, [entryPrice, stopLoss, targetPrice, maxRisk]);
 
     const handleApplySizing = () => {
+        const isUSMarket = market?.startsWith('US');
         if (sizing.suggestedLots > 0) {
-            setQuantity(sizing.suggestedLots * 100);
+            setQuantity(isUSMarket ? sizing.suggestedLots.toFixed(2) : sizing.suggestedLots * 100);
             setShowRiskCalc(false);
         }
     };
@@ -88,7 +96,7 @@ export function PositionManager({ ticker, currentPrice, existingPosition, techni
         onSave({
             entryPrice: parseFloat(entryPrice),
             strategy,
-            quantity: quantity ? parseInt(quantity) : 0,
+            quantity: quantity ? parseFloat(quantity) : 0,
             stopLoss: stopLoss ? parseFloat(stopLoss) : null,
             targetPrice: targetPrice ? parseFloat(targetPrice) : null,
             maxRisk: parseFloat(maxRisk),
@@ -102,7 +110,7 @@ export function PositionManager({ ticker, currentPrice, existingPosition, techni
         try {
             await onSell({
                 sell_price: parseFloat(sellPrice),
-                quantity: parseInt(sellQty),
+                quantity: parseFloat(sellQty),
                 trade_type: tradeType,
                 notes: sellNotes
             });
@@ -211,10 +219,10 @@ export function PositionManager({ ticker, currentPrice, existingPosition, techni
                         <div className="flex items-center justify-between bg-indigo-500/10 rounded-lg px-4 py-4 border border-indigo-500/10">
                             <div className="flex gap-6">
                                 <div>
-                                    <div className="text-[10px] text-indigo-300/70 font-bold uppercase">Suggested Lots</div>
-                                    <div className="text-xl font-black text-white">{sizing.suggestedLots} <span className="text-[10px] font-normal text-indigo-300/50 uppercase">Lots</span></div>
+                                    <div className="text-[10px] text-indigo-300/70 font-bold uppercase">Suggested {market?.startsWith('US') ? 'Shares' : 'Lots'}</div>
+                                    <div className="text-xl font-black text-white">{sizing.suggestedLots % 1 === 0 ? sizing.suggestedLots : sizing.suggestedLots.toFixed(2)} <span className="text-[10px] font-normal text-indigo-300/50 uppercase">{market?.startsWith('US') ? 'Shares' : 'Lots'}</span></div>
                                     <div className="text-[9px] text-indigo-300/40 font-bold mt-1">
-                                        Modal: RM {sizing.totalInvestment.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                        Modal: RM {sizing.totalInvestment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </div>
                                 </div>
                                 <div className="h-10 w-px bg-white/5"></div>
@@ -286,14 +294,15 @@ export function PositionManager({ ticker, currentPrice, existingPosition, techni
                     {/* Quantity */}
                     <div className="flex flex-col gap-2 col-span-2 lg:col-span-1">
                         <label className="text-[9px] text-gray-500 uppercase font-black tracking-tighter flex items-center gap-1.5 ml-1">
-                            <Hash className="w-3 h-3 text-gray-600" /> Quantity
+                            <Hash className="w-3 h-3 text-gray-600" /> Quantity {market?.startsWith('US') ? '(Shares)' : '(Lots x 100)'}
                         </label>
                         <input
                             type="number"
+                            step="any"
                             value={quantity}
                             onChange={(e) => setQuantity(e.target.value)}
                             className="w-full bg-background/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 outline-none transition-all placeholder:text-gray-700"
-                            placeholder="Unit count"
+                            placeholder={market?.startsWith('US') ? "0.00" : "Unit count"}
                         />
                     </div>
                 </div>
