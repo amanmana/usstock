@@ -580,9 +580,22 @@ export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTick
                                     // 5. System Technical Strength
                                     else if (scoreToUse >= 7.0) {
                                         if (rrNum >= 2.0) {
-                                            verdict = "HOLD";
-                                            vColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/5";
-                                            vIcon = <CheckCircle className="w-5 h-5" />;
+                                            const ha1d = stock.heikinAshiGo;
+                                            const ha4h = intradayAnalysis?.ha4h?.status === 'GO';
+
+                                            if (ha1d && ha4h) {
+                                                verdict = "DOUBLE GO";
+                                                vColor = "bg-emerald-500 text-black border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.5)]";
+                                                vIcon = <Zap className="w-5 h-5 fill-black" />;
+                                            } else if (ha1d) {
+                                                verdict = "GO";
+                                                vColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-lg shadow-emerald-500/5";
+                                                vIcon = <CheckCircle className="w-5 h-5" />;
+                                            } else {
+                                                verdict = "WAIT / QUE";
+                                                vColor = "bg-yellow-500/10 text-yellow-500 border-yellow-500/20";
+                                                vIcon = <Loader2 className="w-5 h-5" />;
+                                            }
                                         } else {
                                             verdict = "HOLD / SELL HALF";
                                             vColor = "bg-yellow-500/10 text-yellow-500 border-yellow-500/20 shadow-lg shadow-yellow-500/5";
@@ -603,13 +616,26 @@ export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTick
                                         vIcon = <AlertOctagon className="w-5 h-5" />;
                                     } else if (scoreToUse >= 7.0) {
                                         if (rrNum >= 2.0) {
-                                            verdict = "GO";
-                                            vColor = "bg-emerald-500 text-black border-emerald-500 shadow-lg shadow-emerald-500/20";
-                                            vIcon = <CheckCircle className="w-5 h-5" />;
+                                            const ha1d = stock.heikinAshiGo;
+                                            const ha4h = intradayAnalysis?.ha4h?.status === 'GO';
+
+                                            if (ha1d && ha4h) {
+                                                verdict = "DOUBLE GO";
+                                                vColor = "bg-emerald-500 text-black border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.5)]";
+                                                vIcon = <Zap className="w-5 h-5 fill-black" />;
+                                            } else if (ha1d) {
+                                                verdict = "GO";
+                                                vColor = "bg-emerald-500 text-black border-emerald-500 shadow-lg shadow-emerald-500/20";
+                                                vIcon = <CheckCircle className="w-5 h-5" />;
+                                            } else {
+                                                verdict = "WAIT / QUE";
+                                                vColor = "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
+                                                vIcon = <Loader2 className="w-5 h-5" />;
+                                            }
                                         } else {
-                                            verdict = "WAIT / QUE";
-                                            vColor = "bg-yellow-500/20 text-yellow-500 border-yellow-500/50";
-                                            vIcon = <Loader2 className="w-5 h-5" />;
+                                            verdict = "HOLD / SELL HALF";
+                                            vColor = "bg-yellow-500/10 text-yellow-500 border-yellow-500/20 shadow-lg shadow-yellow-500/5";
+                                            vIcon = <Activity className="w-5 h-5" />;
                                         }
                                     }
                                 }
@@ -650,7 +676,7 @@ export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTick
 
                                 // Gauge Value Calculation
                                 let verdictValue = 50; // Neutral
-                                if (verdict === "GO" || verdict === "HOLD") verdictValue = 90;
+                                if (verdict === "GO" || verdict === "DOUBLE GO" || verdict === "HOLD") verdictValue = 90;
                                 else if (verdict === "WAIT / QUE" || verdict === "HOLD / SELL HALF") verdictValue = 70;
                                 else if (verdict === "AVOID" || verdict === "STRONG SELL / CUT") verdictValue = 10;
                                 else if (verdict === "NEUTRAL" || verdict === "MONITOR") verdictValue = 50;
@@ -659,14 +685,67 @@ export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTick
                                 return (
                                     <>
                                         {/* Technical Gauges Section */}
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="bg-surfaceHighlight/30 rounded-2xl p-4 border border-white/5 flex flex-col items-center">
+                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                            <div className="bg-surfaceHighlight/30 rounded-2xl p-4 border border-white/5 flex flex-col items-center justify-center">
                                                 <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Technical Decision</h4>
                                                 <GaugeMeter value={verdictValue} label={verdict} color={vColor.includes('emerald') ? '#10b981' : (vColor.includes('red') ? '#ef4444' : (vColor.includes('yellow') ? '#fbbf24' : '#94a3b8'))} />
                                             </div>
-                                            <div className="bg-surfaceHighlight/30 rounded-2xl p-4 border border-white/5 flex flex-col items-center">
+                                            <div className="bg-surfaceHighlight/30 rounded-2xl p-4 border border-white/5 flex flex-col items-center justify-center">
                                                 <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3">Signal Confidence</h4>
                                                 <GaugeMeter value={conviction} label={`${conviction}%`} color="#3b82f6" />
+                                            </div>
+                                        </div>
+
+                                        {/* Double GO Checklist */}
+                                        <div className="w-full bg-surfaceHighlight/30 rounded-2xl p-4 border border-white/5 mb-6">
+                                            <h5 className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-3 flex items-center justify-between">
+                                                <span>Double GO Checklist</span>
+                                                {(verdict === "DOUBLE GO") && <span className="text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full text-[8px] flex items-center gap-1"><Zap className="w-3 h-3 fill-emerald-400" /> PASSED</span>}
+                                            </h5>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                {/* Score */}
+                                                <div className="flex bg-black/20 rounded-xl p-2.5 items-center justify-between border border-white/5">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Score ≥ 7</span>
+                                                        <span className={`text-xs font-black ${scoreToUse >= 7.0 ? "text-emerald-400" : "text-gray-300"}`}>{scoreToUse.toFixed(1)}</span>
+                                                    </div>
+                                                    <div className={`w-2 h-2 rounded-full ${scoreToUse >= 7.0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 border border-red-900/50 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
+                                                </div>
+
+                                                {/* RR */}
+                                                <div className="flex bg-black/20 rounded-xl p-2.5 items-center justify-between border border-white/5">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">RR ≥ 2</span>
+                                                        <span className={`text-xs font-black ${rrNum >= 2.0 ? "text-emerald-400" : "text-gray-300"}`}>{rrNum.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className={`w-2 h-2 rounded-full ${rrNum >= 2.0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 border border-red-900/50 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
+                                                </div>
+
+                                                {/* 1D HA */}
+                                                <div className="flex bg-black/20 rounded-xl p-2.5 items-center justify-between border border-white/5">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">1D HA Conf</span>
+                                                        <span className={`text-xs font-black line-clamp-1 ${stock.heikinAshiGo ? "text-emerald-400" : "text-red-400"}`}>{stock.heikinAshiGo ? "Hijau" : "Wait"}</span>
+                                                    </div>
+                                                    <div className={`w-2 h-2 rounded-full ${stock.heikinAshiGo ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 border border-red-900/50 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
+                                                </div>
+
+                                                {/* 4H HA */}
+                                                <div className="flex bg-black/20 rounded-xl p-2.5 items-center justify-between border border-white/5 relative overflow-hidden">
+                                                    <div className="flex flex-col z-10 relative">
+                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">4H HA Conf</span>
+                                                        <span className={`text-[10px] font-black line-clamp-1 ${intradayAnalysis?.ha4h?.status === 'GO' ? "text-emerald-400" : (loadingIntraday ? "text-gray-400" : "text-red-400")}`}>
+                                                            {loadingIntraday ? "Loading..." : (intradayAnalysis?.ha4h?.status === 'GO' ? "Hijau" : "Wait")}
+                                                        </span>
+                                                    </div>
+                                                    <div className="z-10 relative">
+                                                        {loadingIntraday ? (
+                                                            <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />
+                                                        ) : (
+                                                            <div className={`w-2 h-2 rounded-full ${intradayAnalysis?.ha4h?.status === 'GO' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500 border border-red-900/50 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`}></div>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -887,7 +966,7 @@ export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTick
                 {/* Footer - Sticky Bottom */}
                 <div className="sticky bottom-0 z-30 p-6 md:p-8 border-t border-white/5 bg-surfaceHighlight/50 backdrop-blur-xl flex justify-between items-center">
                     <a
-                        href={`https://www.tradingview.com/chart/?symbol=MYX%3A${stock.ticker.split('.')[0]}`}
+                        href={`https://www.tradingview.com/chart/?symbol=${stock.ticker.split('.')[0]}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 text-xs md:text-sm text-gray-500 hover:text-white transition-colors group px-4 py-2 bg-white/5 rounded-xl border border-white/5"
