@@ -684,77 +684,79 @@ export function StockModal({ stock, onClose, strategy = 'rebound', favouriteTick
 
                                 return (
                                     <>
-                                        {/* Technical Gauges Section */}
-                                        <div className="bg-[#151515] rounded-3xl p-6 lg:p-8 border border-white/5 flex flex-col items-center mb-6 shadow-2xl">
-                                            <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Technical Decision</h4>
-
-                                            {/* Big Gauge */}
-                                            <div className="w-full flex flex-col items-center justify-center mb-8 relative">
-                                                <div className="scale-110 mb-2">
-                                                    <GaugeMeter
-                                                        value={verdictValue}
-                                                        label={verdict}
-                                                        color={vColor.includes('emerald') ? '#10b981' : (vColor.includes('red') ? '#ef4444' : (vColor.includes('yellow') ? '#fbbf24' : '#94a3b8'))}
-                                                        isPortfolio={!!pos}
-                                                    />
-                                                </div>
-
-                                                <div className={`mt-2 flex items-center justify-center px-6 py-2.5 rounded-full border-2 font-black text-sm transition-all duration-500 shadow-xl ${vColor}`}>
-                                                    {verdict}
-                                                </div>
+                                        {/* Technical Gauges Section - Recovered Single Gauge Layout */}
+                                        <div className="bg-surfaceHighlight/30 rounded-2xl p-6 border border-white/5 flex flex-col items-center mb-6">
+                                            <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Technical Decision</h4>
+                                            <div className="w-full flex justify-center mb-4">
+                                                <GaugeMeter
+                                                    value={verdictValue}
+                                                    label={verdict}
+                                                    isPortfolio={!!pos}
+                                                    color={vColor.includes('emerald') ? '#10b981' : (vColor.includes('red') ? '#ef4444' : (vColor.includes('yellow') ? '#fbbf24' : '#94a3b8'))}
+                                                />
                                             </div>
-
-                                            {/* HA Confirmation Cards */}
-                                            <div className="grid grid-cols-2 gap-4 w-full mb-8">
-                                                <div className="flex flex-col items-center justify-center py-5 px-3 bg-[#1c1c1c] rounded-[1.25rem] border border-white/[0.03]">
-                                                    <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">1D HA Conf</h4>
-                                                    <div className={`text-[10px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 border transition-colors ${stock.heikinAshiGo ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/5 text-gray-400 border-white/5'}`}>
-                                                        <Activity className="w-3.5 h-3.5" />
-                                                        {stock.heikinAshiGo ? "GO" : "WAIT"}
+                                            <div className="w-full flex flex-col items-center gap-3 pt-4 border-t border-white/5">
+                                                <div className="grid grid-cols-2 gap-4 w-full">
+                                                    <div className="flex flex-col items-center justify-center p-2 bg-white/5 rounded-xl border border-white/5">
+                                                        <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5">1D HA Conf</h4>
+                                                        <div className={`text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 ${stock.heikinAshiGo ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                                                            {stock.heikinAshiGo ? <CheckCircle className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                                            {stock.heikinAshiGo ? stock.haReason : "WAIT"}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-col items-center justify-center p-2 bg-white/5 rounded-xl border border-white/5">
+                                                        <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5">4H HA Conf</h4>
+                                                        <div className={`text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 ${loadingIntraday ? 'bg-gray-500/10 text-gray-400 border border-gray-500/20' : (intradayAnalysis?.ha4h?.status === 'GO' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/10 text-red-400 border border-red-500/20')}`}>
+                                                            {loadingIntraday ? <Loader2 className="w-3 h-3 animate-spin text-gray-400" /> : (intradayAnalysis?.ha4h?.status === 'GO' ? <Zap className="w-3 h-3 fill-emerald-400" /> : <TrendingDown className="w-3 h-3" />)}
+                                                            {loadingIntraday ? "LOADING..." : (intradayAnalysis?.ha4h?.reason || "WAIT")}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-col items-center justify-center py-5 px-3 bg-[#1c1c1c] rounded-[1.25rem] border border-white/[0.03]">
-                                                    <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3">4H HA Conf</h4>
-                                                    <div className={`text-[10px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 border transition-colors ${loadingIntraday ? 'bg-white/5 text-gray-400 border-white/5' : (intradayAnalysis?.ha4h?.status === 'GO' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/5 text-gray-400 border-white/5')}`}>
-                                                        {loadingIntraday ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
-                                                        {loadingIntraday ? "LOADING" : (intradayAnalysis?.ha4h?.status === 'GO' ? "GO" : "WAIT")}
-                                                    </div>
-                                                </div>
-                                            </div>
+                                                <div className="flex flex-col items-center border-t border-white/5 pt-3 w-full">
+                                                    <h4 className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1">System Conviction</h4>
+                                                    <div className="text-xl font-black text-blue-400 mb-3">{conviction}%</div>
 
-                                            {/* System Conviction */}
-                                            <div className="flex flex-col items-center w-full pt-8 border-t border-white/5 relative">
-                                                <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.15em] mb-2">System Conviction</h4>
-                                                <div className="text-3xl font-black text-blue-400">{conviction}%</div>
+                                                    {/* Double GO Checklist */}
+                                                    <div className="w-full bg-black/20 rounded-lg p-3 border border-white/5">
+                                                        <h5 className="text-[8px] text-gray-400 font-bold uppercase tracking-wider mb-2 text-center flex items-center justify-center gap-2">
+                                                            Double GO Checklist
+                                                            {(verdict === "DOUBLE GO") && <span className="text-emerald-400 font-bold bg-emerald-500/20 px-1.5 py-0.5 rounded text-[7px] flex items-center gap-1"><Zap className="w-2.5 h-2.5 fill-emerald-400" /> PASSED</span>}
+                                                        </h5>
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <div className="flex items-center justify-between text-[9px] font-bold">
+                                                                <span className="text-gray-400">Score ≥ 7.0</span>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className={scoreToUse >= 7.0 ? "text-emerald-400" : "text-gray-300"}>{scoreToUse.toFixed(1)}</span>
+                                                                    <div className={`w-1.5 h-1.5 rounded-full ${scoreToUse >= 7.0 ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]'}`}></div>
+                                                                </div>
+                                                            </div>
 
-                                                {/* Double GO Checklist Dots */}
-                                                <div className="mt-4 flex flex-row items-center justify-center gap-4 border border-white/5 bg-black/20 px-4 py-2 rounded-full">
-                                                    {/* Score */}
-                                                    <div className="flex flex-col items-center gap-1.5">
-                                                        <div className={`w-2.5 h-2.5 rounded-full ${scoreToUse >= 7.0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500/50'}`}></div>
-                                                        <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider">SCORE</span>
-                                                    </div>
-                                                    <div className="w-px h-6 bg-white/5 relative -top-0.5"></div>
-                                                    {/* RR */}
-                                                    <div className="flex flex-col items-center gap-1.5">
-                                                        <div className={`w-2.5 h-2.5 rounded-full ${rrNum >= 2.0 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500/50'}`}></div>
-                                                        <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider">RR</span>
-                                                    </div>
-                                                    <div className="w-px h-6 bg-white/5 relative -top-0.5"></div>
-                                                    {/* 1D HA */}
-                                                    <div className="flex flex-col items-center gap-1.5">
-                                                        <div className={`w-2.5 h-2.5 rounded-full ${stock.heikinAshiGo ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500/50'}`}></div>
-                                                        <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider">1D HA</span>
-                                                    </div>
-                                                    <div className="w-px h-6 bg-white/5 relative -top-0.5"></div>
-                                                    {/* 4H HA */}
-                                                    <div className="flex flex-col items-center gap-1.5">
-                                                        {loadingIntraday ? (
-                                                            <div className="w-2.5 h-2.5 rounded-full bg-gray-500 animate-pulse"></div>
-                                                        ) : (
-                                                            <div className={`w-2.5 h-2.5 rounded-full ${intradayAnalysis?.ha4h?.status === 'GO' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-500/50'}`}></div>
-                                                        )}
-                                                        <span className="text-[7px] font-bold text-gray-500 uppercase tracking-wider">4H HA</span>
+                                                            <div className="flex items-center justify-between text-[9px] font-bold">
+                                                                <span className="text-gray-400">RR Ratio ≥ 2.0</span>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className={rrNum >= 2.0 ? "text-emerald-400" : "text-gray-300"}>{rrNum.toFixed(2)}</span>
+                                                                    <div className={`w-1.5 h-1.5 rounded-full ${rrNum >= 2.0 ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]'}`}></div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex items-center justify-between text-[9px] font-bold">
+                                                                <span className="text-gray-400">1D HA Conf</span>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className={stock.heikinAshiGo ? "text-emerald-400" : "text-red-400"}>{stock.heikinAshiGo ? "Hijau" : "Wait"}</span>
+                                                                    <div className={`w-1.5 h-1.5 rounded-full ${stock.heikinAshiGo ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]'}`}></div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex items-center justify-between text-[9px] font-bold">
+                                                                <span className="text-gray-400">4H HA Conf</span>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className={intradayAnalysis?.ha4h?.status === 'GO' ? "text-emerald-400" : (loadingIntraday ? "text-gray-500" : "text-red-400")}>
+                                                                        {loadingIntraday ? "Loading" : (intradayAnalysis?.ha4h?.status === 'GO' ? "Hijau" : "Wait")}
+                                                                    </span>
+                                                                    <div className={`w-1.5 h-1.5 rounded-full ${loadingIntraday ? 'bg-gray-500 animate-pulse' : (intradayAnalysis?.ha4h?.status === 'GO' ? 'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]' : 'bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]')}`}></div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
