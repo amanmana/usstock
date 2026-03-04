@@ -8,7 +8,7 @@ export function useScreener() {
     const [error, setError] = useState(null);
     const [lastUpdated, setLastUpdated] = useState(null);
 
-    const fetchResults = async (targetUniverse = 'shariah_top300_hybrid') => {
+    const fetchResults = async (targetUniverse = 'shariah_top300_real') => {
         setLoading(true);
         setError(null);
         try {

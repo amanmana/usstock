@@ -1,71 +1,68 @@
 import { supabase } from './utils/supabaseClient.js';
-import { analyzeStock } from './utils/indicators.js';
+import { analyzeIntraday } from './getIntradayAnalysisV2.js';
+import { buildTradePlan } from './utils/buildTradePlan.js';
 
 export const handler = async (event, context) => {
-    if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'POST required' };
+    // Support both POST and GET
+    const method = event.httpMethod;
+    let ticker;
+
+    if (method === 'POST') {
+        try {
+            const body = JSON.parse(event.body || '{}');
+            ticker = body.ticker;
+        } catch (e) {
+            console.error("Error parsing POST body", e);
+        }
+    } else if (method === 'GET') {
+        ticker = event.queryStringParameters?.ticker;
+    } else {
+        return { statusCode: 405, body: 'GET or POST required' };
+    }
+
+    if (!ticker) return { statusCode: 400, body: 'Missing ticker' };
 
     try {
-        const body = JSON.parse(event.body);
-        const { ticker, name } = body;
+        // 1. Fetch Analysis Data
+        const analysis = await analyzeIntraday(ticker, null, false);
 
-        if (!ticker) return { statusCode: 400, body: 'Missing ticker' };
-
-        // 1. Get Stock Metadata
-        const { data: stockInfo } = await supabase
-            .from('klse_stocks')
-            .select('*')
-            .eq('ticker_full', ticker)
-            .single();
-
-        // 2. Get Price History
-        const limitDate = new Date();
-        limitDate.setFullYear(limitDate.getFullYear() - 1);
-
-        const { data: prices, error: priceError } = await supabase
-            .from('klse_prices_daily')
-            .select('close, volume, price_date')
-            .eq('ticker_full', stockInfo?.ticker_full || ticker)
-            .gte('price_date', limitDate.toISOString())
-            .order('price_date', { ascending: true });
-
-        if (priceError) throw priceError;
-        if (!prices || prices.length < 5) {
+        if (!analysis || analysis.error) {
             return {
                 statusCode: 404,
-                body: JSON.stringify({ error: 'Insufficent price data. Please try again after history import.' })
+                body: JSON.stringify({ error: analysis?.error || 'Analysis failed' })
             };
         }
 
-        const priceData = prices.map(p => ({
-            close: p.close,
-            volume: p.volume,
-            date: p.price_date
-        }));
+        // 2. Fetch Metadata (Company Name & Shariah Status)
+        const { data: stockInfo } = await supabase
+            .from('klse_stocks')
+            .select('company_name, shariah_status')
+            .eq('ticker_full', ticker)
+            .single();
 
-        // 3. Analyze
-        const analysis = analyzeStock({
-            code: stockInfo?.ticker_code || ticker.split('.')[0],
-            company: stockInfo?.short_name || stockInfo?.company_name || name || 'Unknown',
-            fullName: stockInfo?.company_name || name || 'Unknown',
-            prices: priceData
+        // 3. Build Standardized Trade Plan
+        const tradePlan = buildTradePlan({
+            ticker,
+            companyName: stockInfo?.company_name,
+            shariahStatus: stockInfo?.shariah_status,
+            analysis
         });
-
-        if (!analysis) {
-            return { statusCode: 500, body: JSON.stringify({ error: 'Analysis failed' }) };
-        }
-
-        // Add metadata
-        analysis.isShariah = stockInfo?.shariah_status === 'SHARIAH';
-        analysis.shariah = analysis.isShariah;
-        analysis.ticker = stockInfo?.ticker_full || ticker;
 
         return {
             statusCode: 200,
-            body: JSON.stringify(analysis)
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            body: JSON.stringify(tradePlan) // Return naked tradePlan as requested
         };
 
     } catch (err) {
         console.error('Analysis Error:', err);
-        return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: err.message })
+        };
     }
 };
+

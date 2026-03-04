@@ -7,7 +7,7 @@ import { getComputeUniverse } from './utils/universe.js';
  * Stores results in cache, tagged with metadata to allow UI filtering.
  */
 export const handler = async (event, context) => {
-    const useMock = event.queryStringParameters?.useMock !== 'false';
+    const useMock = event.queryStringParameters?.useMock === 'true'; // Default to false
     const mode = useMock ? 'hybrid' : 'real';
     const cacheKey = `universe_all_${mode}`;
 

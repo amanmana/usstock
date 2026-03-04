@@ -52,7 +52,7 @@ export const handler = async (event) => {
 
             // Utilities
             'NEE', 'DUK', 'SO', 'D', 'AEP', 'SRE', 'ED', 'PEG', 'EXC', 'XEL',
-            'WEC', 'ES', 'AWK', 'AEE', 'FE', 'ETR', 'CNP', 'CMS', 'ATO', 'LNT', 'NI',
+            'WEC', 'ES', 'AWK', 'AEE', 'FE', 'ETR', 'CMS', 'ATO', 'LNT', 'NI',
 
             // Real Estate (REITs - Shariah compliant only)
             'PLD', 'AMT', 'CCI', 'EQIX', 'PSA', 'DRE', 'EXR', 'VICI', 'WY', 'SBAC',
@@ -61,6 +61,14 @@ export const handler = async (event) => {
 
         const $ = cheerio.load(html);
         const upserts = [];
+
+        // Fetch stocks with manual Shariah corrections to avoid overwriting them
+        const { data: manualCorrections } = await supabase
+            .from('klse_stocks')
+            .select('ticker_full')
+            .eq('manual_shariah_correction', true);
+
+        const manualSet = new Set(manualCorrections?.map(m => m.ticker_full) || []);
 
         // Parse the first table containing the S&P 500 companies
         $('#constituents tbody tr').each((index, element) => {
@@ -76,7 +84,8 @@ export const handler = async (event) => {
                 const isShariah = shariahWhitelist.has(ticker);
 
                 // For this project, we ONLY process and keep active the Shariah stocks
-                if (isShariah) {
+                // ALSO skip if user has manually corrected this stock
+                if (isShariah && !manualSet.has(ticker)) {
                     upserts.push({
                         ticker_full: ticker,
                         ticker_code: ticker,

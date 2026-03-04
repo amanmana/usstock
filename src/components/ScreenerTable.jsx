@@ -26,7 +26,7 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
                         <th className="p-4">Ticker / Company</th>
                         <th className="p-4 text-center">Score</th>
                         <th className="p-4 text-center">Strategy / Action</th>
-                        <th className="p-4 text-right">Close (RM)</th>
+                        <th className="p-4 text-right">Close (USD)</th>
                         <th className="p-4 text-center">DD% / RSI</th>
                         <th className="p-4">Signals</th>
                         <th className="p-4 pr-6 text-right">Action</th>
@@ -135,7 +135,7 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
                                 <td className="p-4 text-right">
                                     <div className="flex flex-col items-end">
                                         <div className={`font-mono text-base font-bold transition-all duration-500 ${stock.isLivePrice ? 'text-primary' : 'text-gray-200'}`}>
-                                            RM {stock.close ? stock.close.toFixed(3) : '-'}
+                                            USD {stock.close ? stock.close.toFixed(3) : '-'}
                                         </div>
                                         <div className="mt-0.5">
                                             {stock.isLivePrice ? (

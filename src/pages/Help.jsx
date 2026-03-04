@@ -188,12 +188,12 @@ const HelpPage = () => {
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                             <div className="p-4 bg-surfaceHighlight/20 rounded-xl border border-white/5">
-                                <h5 className="text-red-400 text-xs font-bold mb-2 uppercase">1. Max Risk (RM)</h5>
-                                <p className="text-[11px] text-gray-400 leading-relaxed">Jumlah tunai yang anda sanggup hilang jika terkena Stop Loss. Contoh: RM 50.</p>
+                                <h5 className="text-red-400 text-xs font-bold mb-2 uppercase">1. Max Risk (USD)</h5>
+                                <p className="text-[11px] text-gray-400 leading-relaxed">Jumlah tunai yang anda sanggup hilang jika terkena Stop Loss. Contoh: USD 50.</p>
                             </div>
                             <div className="p-4 bg-indigo-500/10 rounded-xl border border-indigo-500/10">
                                 <h5 className="text-indigo-400 text-xs font-bold mb-2 uppercase">2. Target Price (TP)</h5>
-                                <p className="text-[11px] text-gray-400 leading-relaxed">Harga sasaran untuk jual. Sistem guna ini untuk kira potensi untung dalam RM.</p>
+                                <p className="text-[11px] text-gray-400 leading-relaxed">Harga sasaran untuk jual. Sistem guna ini untuk kira potensi untung dalam USD.</p>
                             </div>
                         </div>
 

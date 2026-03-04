@@ -37,24 +37,20 @@ function Dashboard() {
   const [selectedStock, setSelectedStock] = useState(null);
   const [selectedStrategy, setSelectedStrategy] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [dataMode, setDataMode] = useState('hybrid');
+  const [dataMode, setDataMode] = useState('real');
   const [systemStats, setSystemStats] = useState(null);
   const [activeTab, setActiveTab] = useState('rebound'); // 'rebound' or 'momentum'
   const [livePrices, setLivePrices] = useState({});
 
   useEffect(() => {
-    // Fetch system status & handle auto-mode-switch
+    // Fetch system status
     fetch('/.netlify/functions/systemStatus')
       .then(res => res.json())
       .then(data => {
         if (!data || data.error) return;
         setSystemStats(data);
-        // If data is mature (>= 50 days), force PRODUCTION mode
-        if (data.dataMaturity && data.dataMaturity.realDays >= 50) {
-          setDataMode('real');
-          // Important: Trigger refetch for the real data universe
-          refetch('shariah_top300_real');
-        }
+        // Force production universe
+        refetch('shariah_top300_real');
       })
       .catch(e => console.error("System Status Fetch Error:", e));
   }, []);
@@ -85,15 +81,16 @@ function Dashboard() {
   }, [positions]);
 
   const handleModeToggle = async (mode) => {
-    setDataMode(mode);
-    refetch(mode === 'real' ? 'shariah_top300_real' : 'shariah_top300_hybrid');
+    // This function is now a no-op as we enforce 'real'
+    setDataMode('real');
+    refetch('shariah_top300_real');
   };
 
   const forceRecompute = async () => {
     setIsAnalyzing(true);
     try {
-      await fetch(`/.netlify/functions/computeScreener?useMock=${dataMode === 'hybrid'}`);
-      refetch(dataMode === 'real' ? 'shariah_top300_real' : 'shariah_top300_hybrid');
+      await fetch(`/.netlify/functions/computeScreener?useMock=false`);
+      refetch('shariah_top300_real');
     } catch (e) {
       console.error(e);
     } finally {
@@ -275,8 +272,6 @@ function Dashboard() {
 
       {/* System Status Dashboard */}
       <SystemBar
-        mode={dataMode}
-        onToggleMode={handleModeToggle}
         onRecompute={forceRecompute}
         stats={systemStats}
       />
@@ -620,52 +615,46 @@ function Dashboard() {
   );
 }
 
-const SystemBar = ({ mode, onToggleMode, onRecompute, stats }) => {
+const SystemBar = ({ onRecompute, stats }) => {
   if (!stats) return <div className="max-w-7xl mx-auto mb-8 h-12 bg-surface animate-pulse rounded-lg"></div>;
 
   const { dataMaturity, lastSync } = stats || {};
   if (!dataMaturity) return null;
-  const isReal = mode === 'real';
-  const displayedDays = isReal ? (dataMaturity.realDays || 0) : (dataMaturity.totalDays || 0);
-  const isMature = (dataMaturity.realDays || 0) >= 50;
+
+  const isReal = true;
+  const displayedDays = dataMaturity.realDays || 0;
 
   return (
-    <div className={`max-w-7xl mx-auto mb-8 grid grid-cols-1 ${isMature ? 'md:grid-cols-3' : 'md:grid-cols-4'} gap-6`}>
-      {/* 0. Data Source Toggle (Auto-Hides when mature) */}
-      {!isMature && (
-        <div className="bg-surface border border-border rounded-xl p-5 shadow-lg flex flex-col justify-between">
-          <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-3">Sistem Data</span>
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={() => onToggleMode('hybrid')}
-              className={`text-xs px-3 py-2 rounded-lg font-bold border transition-all flex items-center justify-between ${!isReal ? 'bg-primary/20 border-primary text-primary' : 'bg-surfaceHighlight border-transparent text-gray-500 hover:text-white'}`}
-            >
-              DEMO (DATA PALSU)
-              {!isReal && <div className="w-1.5 h-1.5 rounded-full bg-primary mx-1"></div>}
-            </button>
-            <button
-              onClick={() => onToggleMode('real')}
-              className={`text-xs px-3 py-2 rounded-lg font-bold border transition-all flex items-center justify-between ${isReal ? 'bg-orange-500/20 border-orange-500 text-orange-500' : 'bg-surfaceHighlight border-transparent text-gray-500 hover:text-white'}`}
-            >
-              ASAL (DATA SEBENAR)
-              {isReal && <div className="w-1.5 h-1.5 rounded-full bg-orange-500 mx-1"></div>}
-            </button>
-          </div>
-          <button
-            onClick={onRecompute}
-            className="mt-4 w-full py-2 bg-surfaceHighlight hover:bg-white/10 text-[11px] text-white font-bold rounded-lg border border-border transition-all flex items-center justify-center gap-2 group"
-          >
-            <RefreshCw className="w-3 h-3 group-hover:rotate-180 transition-transform duration-500" />
-            KIRA SEMULA ISYARAT
-          </button>
+    <div className={`max-w-7xl mx-auto mb-8 grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-700`}>
+      {/* 1. System Health Bar */}
+      <div className="bg-surface border border-border rounded-xl p-5 shadow-lg flex flex-col justify-between group overflow-hidden relative">
+        <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
+          <Activity className="w-16 h-16 text-primary" />
         </div>
-      )}
+        <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-3">Status Enjin Keputusan</span>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+            <CheckCircle className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <div className="text-lg font-black text-white">AKTIF & STABIL</div>
+            <div className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">Keputusan Sebenar (OHLCV)</div>
+          </div>
+        </div>
+        <button
+          onClick={onRecompute}
+          className="mt-4 w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-bold rounded-lg border border-primary/20 transition-all flex items-center justify-center gap-2 group"
+        >
+          <RefreshCw className="w-3 h-3 group-hover:rotate-180 transition-transform duration-500" />
+          KIRA SEMULA ISYARAT (REAL)
+        </button>
+      </div>
 
       <div className="bg-surface border border-border rounded-xl p-5 flex flex-col justify-center shadow-lg relative overflow-hidden group">
         <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/5 rounded-full -mr-10 -mt-10 group-hover:bg-blue-500/10 transition-colors"></div>
         <div className="flex justify-between items-end mb-4 relative z-10">
           <div>
-            <span className="text-xs text-gray-500 uppercase font-bold tracking-wider block mb-1">Kedalaman Data ({mode.toUpperCase()})</span>
+            <span className="text-xs text-gray-500 uppercase font-bold tracking-wider block mb-1">Kedalaman Data (REAL)</span>
             <span className="text-2xl font-mono text-white font-bold">{displayedDays}</span>
             <span className="text-xs text-gray-400 ml-1">HARI DAGANGAN</span>
           </div>
@@ -678,7 +667,7 @@ const SystemBar = ({ mode, onToggleMode, onRecompute, stats }) => {
             </div>
             <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
               <div className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] transition-all duration-1000 ease-out"
-                style={{ width: `${isReal ? dataMaturity.realProgressMA20 : dataMaturity.progressMA20}%` }}></div>
+                style={{ width: `${dataMaturity.realProgressMA20}%` }}></div>
             </div>
           </div>
           <div>
@@ -688,7 +677,7 @@ const SystemBar = ({ mode, onToggleMode, onRecompute, stats }) => {
             </div>
             <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
               <div className="h-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)] transition-all duration-1000 ease-out"
-                style={{ width: `${isReal ? dataMaturity.realProgressMA50 : dataMaturity.progressMA50}%` }}></div>
+                style={{ width: `${dataMaturity.realProgressMA50}%` }}></div>
             </div>
           </div>
         </div>
@@ -723,22 +712,6 @@ const SystemBar = ({ mode, onToggleMode, onRecompute, stats }) => {
             <span>Menunggu giliran...</span>
           </div>
         )}
-      </div>
-
-      <div className="bg-surface border border-border rounded-xl p-5 flex flex-col shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/5 rounded-full -mr-10 -mt-10"></div>
-        <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-3">Status Sistem</span>
-        <div className="flex-1 flex items-center">
-          <div className="text-sm text-gray-300 leading-relaxed font-medium">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-emerald-500/10 rounded-lg shrink-0 text-emerald-500">✔</div>
-              <div>
-                <span className="text-emerald-400 block font-bold mb-1">Beroperasi Penuh</span>
-                Semua penunjuk trend aktif.
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

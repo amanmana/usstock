@@ -49,7 +49,7 @@ const TradeLog = () => {
                         <div className="text-right">
                             <div className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Total PnL ({activeTab})</div>
                             <div className={`text-2xl font-black italic ${totalPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                RM {totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                USD {totalPnL.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </div>
                         </div>
                         <div className="w-px h-10 bg-white/5"></div>
@@ -139,7 +139,7 @@ const TradeLog = () => {
                                         </div>
                                         <div>
                                             <div className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-1">Hrg Jual</div>
-                                            <div className="text-sm font-black text-white">RM {parseFloat(trade.sell_price).toFixed(3)}</div>
+                                            <div className="text-sm font-black text-white">USD {parseFloat(trade.sell_price).toFixed(3)}</div>
                                             <div className="text-[9px] text-gray-500 font-bold uppercase whitespace-nowrap">Kos: {parseFloat(trade.entry_price).toFixed(3)}</div>
                                         </div>
                                         <div>
@@ -152,7 +152,7 @@ const TradeLog = () => {
                                         <div>
                                             <div className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-1">Untung/Rugi</div>
                                             <div className={`text-sm font-black italic ${trade.pnl_amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                RM {parseFloat(trade.pnl_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                USD {parseFloat(trade.pnl_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                             </div>
                                         </div>
                                     </div>

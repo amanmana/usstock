@@ -1,4 +1,40 @@
-// Input: array of { close: number, volume: number } sorted by date ascending (oldest -> newest)
+// Input: array of { open: number, high: number, low: number, close: number, volume: number } sorted by date ascending (oldest -> newest)
+
+export function computeHeikinAshi(prices) {
+    if (!prices || prices.length === 0) return [];
+
+    const haData = [];
+
+    let prevOpen = prices[0].open || prices[0].close;
+    let prevClose = prices[0].close;
+
+    for (let i = 0; i < prices.length; i++) {
+        const p = prices[i];
+
+        const currentOpen = p.open || p.close;
+        const currentHigh = p.high || p.close;
+        const currentLow = p.low || p.close;
+        const currentClose = p.close;
+
+        const haClose = (currentOpen + currentHigh + currentLow + currentClose) / 4;
+        const haOpen = (prevOpen + prevClose) / 2;
+        const haHigh = Math.max(currentHigh, haOpen, haClose);
+        const haLow = Math.min(currentLow, haOpen, haClose);
+
+        haData.push({
+            open: haOpen,
+            high: haHigh,
+            low: haLow,
+            close: haClose,
+            date: p.date || p.price_date
+        });
+
+        prevOpen = haOpen;
+        prevClose = haClose;
+    }
+
+    return haData;
+}
 
 export function computeSMA(values, period) {
     if (!values || values.length < period) return null;
@@ -7,13 +43,22 @@ export function computeSMA(values, period) {
     return sum / period;
 }
 
+export function computeEMA(values, period) {
+    if (!values || values.length === 0) return null;
+    const k = 2 / (period + 1);
+    let ema = values[0];
+    for (let i = 1; i < values.length; i++) {
+        ema = values[i] * k + ema * (1 - k);
+    }
+    return ema;
+}
+
 export function computeRSI(closes, period = 14) {
     if (closes.length < period + 1) return null;
 
     let gains = 0;
     let losses = 0;
 
-    // Initial calculation
     for (let i = 1; i <= period; i++) {
         const change = closes[i] - closes[i - 1];
         if (change > 0) gains += change;
@@ -22,12 +67,6 @@ export function computeRSI(closes, period = 14) {
 
     let avgGain = gains / period;
     let avgLoss = losses / period;
-
-    // Smoothed calculation for subsequent values
-    // We only need the *latest* RSI, so just calculate up to end.
-    // Actually, standard RSI uses Wilder's Smoothing.
-    // RSI = 100 - 100 / (1 + RS)
-    // RS = AvgGain / AvgLoss
 
     for (let i = period + 1; i < closes.length; i++) {
         const change = closes[i] - closes[i - 1];
@@ -51,60 +90,82 @@ export function computeStdDev(values) {
     return Math.sqrt(avgSqDiff);
 }
 
-export function computeHeikinAshi(prices) {
-    if (!prices || prices.length === 0) return [];
+export function computeStochastic(prices, kPeriod = 14, slowing = 1, dPeriod = 3) {
+    if (!prices || prices.length < kPeriod + slowing + dPeriod) return null;
 
-    const haPrices = [];
-    // Start with the first candle's actual OHLC
-    let prevOpen = prices[0].open || prices[0].close;
-    let prevClose = prices[0].close;
+    const fastKs = [];
+    for (let i = kPeriod - 1; i < prices.length; i++) {
+        const window = prices.slice(i - kPeriod + 1, i + 1);
+        const lows = window.map(p => p.low || p.close);
+        const highs = window.map(p => p.high || p.close);
+        const currentClose = prices[i].close;
+        const lowestLow = Math.min(...lows);
+        const highestHigh = Math.max(...highs);
 
-    for (let i = 0; i < prices.length; i++) {
-        const { open, high, low, close } = prices[i];
-
-        // Handle missing OHLC data gracefully by falling back to Close
-        const curOpen = open || close;
-        const curHigh = high || close;
-        const curLow = low || close;
-        const curClose = close;
-
-        const haClose = (curOpen + curHigh + curLow + curClose) / 4;
-        const haOpen = i === 0 ? (curOpen + curClose) / 2 : (prevOpen + prevClose) / 2;
-        const haHigh = Math.max(curHigh, haOpen, haClose);
-        const haLow = Math.min(curLow, haOpen, haClose);
-
-        const isGreen = haClose > haOpen;
-        const isRed = haClose < haOpen;
-        const noLowerWick = isGreen && Math.abs(haOpen - haLow) < (haOpen * 0.0005);
-        const noUpperWick = isRed && Math.abs(haOpen - haHigh) < (haOpen * 0.0005);
-
-        haPrices.push({
-            open: haOpen,
-            high: haHigh,
-            low: haLow,
-            close: haClose,
-            isGreen,
-            isRed,
-            noLowerWick,
-            noUpperWick,
-            date: prices[i].date
-        });
-
-        prevOpen = haOpen;
-        prevClose = haClose;
+        const fastK = highestHigh === lowestLow ? 50 : ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
+        fastKs.push(fastK);
     }
-    return haPrices;
+
+    const slowKs = [];
+    if (slowing === 1) {
+        slowKs.push(...fastKs);
+    } else {
+        for (let i = slowing - 1; i < fastKs.length; i++) {
+            const slice = fastKs.slice(i - slowing + 1, i + 1);
+            const avgK = slice.reduce((a, b) => a + b, 0) / slowing;
+            slowKs.push(avgK);
+        }
+    }
+
+    const ds = [];
+    for (let i = dPeriod - 1; i < slowKs.length; i++) {
+        const slice = slowKs.slice(i - dPeriod + 1, i + 1);
+        const avgD = slice.reduce((a, b) => a + b, 0) / dPeriod;
+        ds.push(avgD);
+    }
+
+    const lastK = slowKs[slowKs.length - 1];
+    const lastD = ds[ds.length - 1];
+    const prevK = slowKs[slowKs.length - 2];
+    const prevD = ds[ds.length - 2];
+
+    return {
+        k: lastK,
+        d: lastD,
+        prevK,
+        prevD,
+        stochState: lastK > lastD ? 'Bullish' : 'Bearish'
+    };
+}
+
+export function computeATR(prices, period = 14) {
+    if (!prices || prices.length < period + 1) return null;
+
+    const trs = [];
+    for (let i = 1; i < prices.length; i++) {
+        const h = prices[i].high || prices[i].close;
+        const l = prices[i].low || prices[i].close;
+        const pc = prices[i - 1].close;
+        const tr = Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+        trs.push(tr);
+    }
+
+    let atr = trs.slice(0, period).reduce((a, b) => a + b, 0) / period;
+
+    for (let i = period; i < trs.length; i++) {
+        atr = (atr * (period - 1) + trs[i]) / period;
+    }
+
+    return atr;
 }
 
 export function analyzeStock(stockData) {
     const { code, company, prices } = stockData;
-    const haPrices = computeHeikinAshi(prices);
-
     const closes = prices.map(p => p.close);
     const volumes = prices.map(p => p.volume);
 
     const len = closes.length;
-    if (len === 0) return null; // No data
+    if (len === 0) return null;
 
     const closeToday = closes[len - 1];
     const closeYesterday = len > 1 ? closes[len - 2] : null;
@@ -113,22 +174,52 @@ export function analyzeStock(stockData) {
 
     const volumeToday = volumes[len - 1];
 
-    // Indicators
+    const ma10 = computeSMA(closes, 10);
     const ma20 = computeSMA(closes, 20);
     const ma50 = computeSMA(closes, 50);
+    const ma150 = computeSMA(closes, 150);
     const ma200 = computeSMA(closes, 200);
     const rsi14 = computeRSI(closes, 14);
+    const stoch = computeStochastic(prices, 14, 1, 3);
+    const atr14 = computeATR(prices, 14);
 
-    // 20D Avg Vol
+    const haPrices = computeHeikinAshi(prices);
+    const haLen = haPrices.length;
+    let heikinAshiGo = false;
+    let haState = 'Neutral';
+    let haDetails = { status: 'WAIT', reason: 'Tiada Data' };
+
+    if (haLen >= 2) {
+        const haToday = haPrices[haLen - 1];
+        const haYesterday = haPrices[haLen - 2];
+
+        const isGreen = haToday.close > haToday.open;
+        const prevWasRed = haYesterday.close <= haYesterday.open;
+        const noLowerWick = Math.abs(haToday.low - haToday.open) < (haToday.open * 0.001);
+
+        haState = isGreen ? 'Bullish' : 'Bearish';
+
+        if (isGreen) {
+            heikinAshiGo = true;
+            if (prevWasRed) {
+                haDetails = { status: 'GO', reason: 'Reversal (Tukar Hijau)' };
+            } else if (noLowerWick) {
+                haDetails = { status: 'GO', reason: 'Strong Bullish (Tiada Ekor Bawah)' };
+            } else {
+                haDetails = { status: 'GO', reason: 'Kekal Hijau (Normal)' };
+            }
+        } else {
+            haDetails = { status: 'WAIT', reason: 'Lilin HA Merah' };
+        }
+    }
+
     const avgVol20 = computeSMA(volumes, 20);
-    const avgVol5 = computeSMA(volumes, 5); // for rebound Volume expansion
+    const avgVol5 = computeSMA(volumes, 5);
 
-    // Support / Resistance Logic (Pivot Method k=3)
     let pivotsLow = [];
     let pivotsHigh = [];
     const k = 3;
 
-    // Scan history for pivots (excluding very recent days that can't be confirmed)
     for (let i = k; i < len - k; i++) {
         const window = closes.slice(i - k, i + k + 1);
         const center = closes[i];
@@ -136,23 +227,19 @@ export function analyzeStock(stockData) {
         if (center === Math.max(...window)) pivotsHigh.push({ price: center, index: i });
     }
 
-    // Nearest Support (below current price)
-    // SANITY: Pivot must be within 30% of current price to be considered structural support
     let support = null;
     let fallbackSupportUsed = false;
-    const sortedLow = [...pivotsLow].sort((a, b) => b.index - a.index); // latest first
+    const sortedLow = [...pivotsLow].sort((a, b) => b.index - a.index);
     const foundLow = sortedLow.find(p => p.price < closeToday * 0.998 && p.price > closeToday * 0.70);
 
     if (foundLow) {
         support = foundLow.price;
     } else if (len >= 20) {
-        // Fallback to recent low within last 60 days, but with a floor
         const recentLow = Math.min(...closes.slice(-Math.min(len, 60)));
         support = Math.max(recentLow, closeToday * 0.85);
         fallbackSupportUsed = true;
     }
 
-    // Nearest Resistance (above current price)
     let resistance = null;
     const sortedHigh = [...pivotsHigh].sort((a, b) => b.index - a.index);
     const foundHigh = sortedHigh.find(p => p.price > closeToday * 1.002);
@@ -163,7 +250,6 @@ export function analyzeStock(stockData) {
         resistance = Math.max(...closes.slice(-Math.min(len, 60)));
     }
 
-    // Touch Count / Strength (last 60 days)
     const countTouches = (level) => {
         if (!level) return 0;
         const last60 = closes.slice(-60);
@@ -175,24 +261,19 @@ export function analyzeStock(stockData) {
     const sStrength = sTouch >= 4 ? "Strong" : sTouch >= 2 ? "Medium" : "Weak";
     const rStrength = rTouch >= 4 ? "Strong" : rTouch >= 2 ? "Medium" : "Weak";
 
-    // Stop Loss / Invalidation
     const returns = [];
     for (let i = Math.max(1, len - 20); i < len; i++) {
         returns.push((closes[i] - closes[i - 1]) / closes[i - 1]);
     }
     const vol20 = computeStdDev(returns);
-    // Use volatility-based stop (2.0 x StdDev) with a ceiling (don't cap at more than 6% daily vol)
     const volUsed = Math.min(vol20, 0.06);
     const stopVol = closeToday * (1 - 1.5 * volUsed);
 
-    // Choose the best stop: structural (support) or volatility
-    let stopPrice = closeToday * 0.95; // Default 5%
+    let stopPrice = closeToday * 0.95;
     if (support && support < closeToday) {
-        const supportStop = support * 0.99; // 1% below support
-        // If support is too close (<1%), use vol stop
-        // If support is too far (>15%), use vol stop
+        const supportStop = support * 0.99;
         if (supportStop < closeToday * 0.99 && supportStop > closeToday * 0.85) {
-            stopPrice = Math.min(supportStop, stopVol); // Pick more conservative
+            stopPrice = Math.min(supportStop, stopVol);
         } else {
             stopPrice = stopVol;
         }
@@ -200,38 +281,30 @@ export function analyzeStock(stockData) {
         stopPrice = stopVol;
     }
 
-    // Final Sanity Guard: Stop price must be between 2% and 15% distance, and always positive
-    const minStop = closeToday * 0.85; // Max 15% risk
-    const maxStop = closeToday * 0.98; // Min 2% risk
+    const minStop = closeToday * 0.85;
+    const maxStop = closeToday * 0.98;
     stopPrice = Math.max(minStop, Math.min(maxStop, stopPrice));
 
-    // Targets
     const target1 = resistance && resistance > closeToday * 1.01 ? resistance : closeToday * 1.05;
     const target2Pivot = sortedHigh.find(p => p.price > target1 * 1.02);
     const target2 = target2Pivot ? target2Pivot.price : Math.max(target1 * 1.07, closeToday * 1.15);
 
     const rr1 = (target1 - closeToday) / (closeToday - stopPrice);
+    const rr2_price = parseFloat(((target1 + 2 * stopPrice) / 3).toFixed(3));
 
-    // Trade Plan Text
     const reclaimedMA20 = ma20 && closeToday > ma20 && closeYesterday <= ma20;
     let entryTrigger = "Menunggu isyarat harga";
     if (reclaimedMA20) entryTrigger = "Melepasi MA20 (Sedia Beli)";
     else if (closeToday > ma20) entryTrigger = "Atas MA20 (Pegang / Beli masa turun)";
     else entryTrigger = "Tunggu harga pecah MA20 ke atas @ " + (ma20?.toFixed(3) || "N/A");
 
-    // 20D High
     const high20 = len >= 20 ? Math.max(...closes.slice(-20)) : Math.max(...closes);
-
-    // Drawdown %
     const dropdown = ((high20 - closeToday) / high20) * 100;
-
-    // 5D Return
     const ret5d = close5DaysAgo ? ((closeToday - close5DaysAgo) / close5DaysAgo) * 100 : 0;
 
-    // --- Scoring Logic ---
-    let scoreA = 0; // Uptrend (0-4)
-    let scoreB = 0; // Pullback (0-3)
-    let scoreC = 0; // Rebound (0-3)
+    let scoreA = 0;
+    let scoreB = 0;
+    let scoreC = 0;
 
     let maxScoreCap = 10;
     let historyLabel = '';
@@ -261,56 +334,56 @@ export function analyzeStock(stockData) {
     let totalScore = scoreA + scoreB + scoreC;
     if (totalScore > maxScoreCap) totalScore = maxScoreCap;
 
-    // --- Momentum Scoring Logic (New) ---
     let momentumScore = 0;
-    // 1. Trend Alignment (0-4)
     if (ma20 && ma50 && ma20 > ma50) momentumScore += 1.5;
     if (ma50 && ma200 && ma50 > ma200) momentumScore += 1;
     if (ma20 && closeToday > ma20) momentumScore += 1;
     if (ma50 && closeToday > ma50) momentumScore += 0.5;
 
-    // 2. Volume Confirmation (0-3)
     if (avgVol20 && volumeToday > 1.25 * avgVol20) momentumScore += 2;
     else if (avgVol20 && volumeToday > avgVol20) momentumScore += 1;
 
-    // 3. Price Strength / RSI Zone (0-3)
     if (rsi14 >= 50 && rsi14 <= 75) momentumScore += 1.5;
     const high60 = len >= 60 ? Math.max(...closes.slice(-60)) : (len >= 20 ? Math.max(...closes.slice(-20)) : Math.max(...closes));
-    if (closeToday >= high60 * 0.98) momentumScore += 1.5; // Near breakdown/breakout
+    if (closeToday >= high60 * 0.98) momentumScore += 1.5;
     else if (closeToday >= high60 * 0.95) momentumScore += 0.5;
 
     if (momentumScore > maxScoreCap) momentumScore = maxScoreCap;
 
-    // --- Advanced Signal Logic (New) ---
     const high200 = len >= 200 ? Math.max(...closes.slice(-200)) : Math.max(...closes);
     const low200 = len >= 200 ? Math.min(...closes.slice(-200)) : Math.min(...closes);
+    const ma200_prev20 = len >= 220 ? computeSMA(closes.slice(0, -20), 200) : ma200;
 
-    // Minervini Trend Template (Approximate)
     const isMinervini =
-        ma50 && ma200 && ma50 > ma200 &&
-        closeToday > ma50 && closeToday > ma200 &&
-        closeToday > low200 * 1.30 && // 30% above 200D low
-        closeToday > high200 * 0.75; // Within 25% of 200D high
+        ma150 && ma200 && ma50 &&
+        closeToday > ma50 &&
+        ma50 > ma150 &&
+        ma150 > ma200 &&
+        ma200 > (ma200_prev20 || 0) &&
+        closeToday >= low200 * 1.30 &&
+        closeToday >= high200 * 0.75;
 
-    // MA Support (Mean Reversion)
+    const isStochOversold = stoch && stoch.k <= 40;
+    const stochCrossUp = stoch && stoch.prevK <= stoch.prevD && stoch.k > stoch.d;
+    const stochBuy = isStochOversold && stochCrossUp;
+
+    const distMA10 = ma10 ? Math.abs(closeToday - ma10) / ma10 : 1;
+    const distMA20 = ma20 ? Math.abs(closeToday - ma20) / ma20 : 1;
+    const isNearSupport = (distMA10 >= 0 && distMA10 <= 0.05) || (distMA20 >= 0 && distMA20 <= 0.05);
+
+    const isSuperPullback = isMinervini && stochBuy && isNearSupport;
+
+    const isParabolic = ma10 && (closeToday > ma10 * 1.10);
+    const isVolumeDistribution = closeYesterday && closeToday < closeYesterday && avgVol20 && volumeToday > 1.5 * avgVol20;
+    const stochOverbought = stoch && stoch.k >= 70;
+    const stochCrossDown = stoch && stoch.prevK >= stoch.prevD && stoch.k < stoch.d;
+    const stochSell = stochOverbought && stochCrossDown;
+    const stochState = stoch?.stochState || 'Bearish';
+    const volumeSurge = avgVol20 && volumeToday > 1.5 * avgVol20;
+
     const nearMA50 = ma50 && Math.abs(closeToday - ma50) / ma50 <= 0.015 && closeToday >= ma50;
     const nearMA200 = ma200 && Math.abs(closeToday - ma200) / ma200 <= 0.015 && closeToday >= ma200;
     const isMASupport = nearMA50 || nearMA200;
-
-    // --- Heikin Ashi Signal ---
-    const latestHA = haPrices.length > 0 ? haPrices[haPrices.length - 1] : null;
-    const prevHA = haPrices.length > 1 ? haPrices[haPrices.length - 2] : null;
-    const isHAGreen = latestHA ? latestHA.isGreen : false;
-    const isHAStrong = latestHA ? latestHA.noLowerWick : false;
-    const isHAReversal = isHAGreen && prevHA && !prevHA.isGreen;
-
-    // HEIKIN-ASHI-GO criteria: Latest HA is Green
-    const heikinAshiGo = isHAGreen === true;
-
-    // Detailed reasons for HA state
-    let haReason = isHAGreen ? "Kekal Hijau" : "Kekal Merah";
-    if (isHAReversal) haReason = "Reversal (Tukar Hijau)";
-    if (isHAStrong) haReason = "Strong Bullish (Tiada Ekor Bawah)";
 
     const signals = [];
     if (scoreA >= 3) signals.push('UPTREND');
@@ -318,20 +391,20 @@ export function analyzeStock(stockData) {
     if (scoreC >= 2) signals.push('REBOUND');
     if (momentumScore >= 7) signals.push('MOMENTUM');
     if (isMinervini) signals.push('MINERVINI-SETUP');
+    if (stochBuy) signals.push('STOCH-BUY');
+    if (isSuperPullback) signals.push('SUPER-PULLBACK');
     if (isMASupport) signals.push('MA-SUPPORT');
     if (heikinAshiGo) signals.push('HEIKIN-ASHI-GO');
+    if (avgVol20 && volumeToday > 2.0 * avgVol20) signals.push('VOLUME-SURGE');
 
-    // Recommendation for tab
     const recommendedTab = momentumScore > totalScore ? 'momentum' : 'rebound';
 
-    // --- Liquidity / Staleness Filter (Sikat) ---
-    // A stock is "sikat" (illiquid) if most candles have no movement (Close == Open/ClosePrev)
     const recent20 = closes.slice(-20);
     let zeroMoveDays = 0;
     for (let i = 1; i < recent20.length; i++) {
         if (recent20[i] === recent20[i - 1]) zeroMoveDays++;
     }
-    const staleness = (zeroMoveDays / 19) * 100; // 19 intervals in 20 bars
+    const staleness = (zeroMoveDays / 19) * 100;
 
     let rejectReason = null;
     if (ret5d > 35) rejectReason = 'Pump (5D > 35%)';
@@ -354,17 +427,26 @@ export function analyzeStock(stockData) {
         momentumScore: parseFloat(momentumScore.toFixed(1)),
         isMinervini,
         isMASupport,
-        heikinAshiGo,
-        haReason,
-        latestHA,
         recommendedTab,
         signals,
+        heikinAshiGo,
+        haDetails,
+        haState,
+        stoch,
+        stochState,
         rejectReason,
         stats: {
-            ma20, ma50, ma200, rsi14,
+            ma10, ma20, ma50, ma150, ma200, rsi14,
             dropdownPercent: parseFloat(dropdown.toFixed(1)),
             ret5d: parseFloat(ret5d.toFixed(1)),
-            avgVol20
+            avgVol20,
+            volumeSurge,
+            atr14,
+            isParabolic,
+            isVolumeDistribution,
+            stochSell,
+            stochCrossUp,
+            stochCrossDown
         },
         levels: {
             support,
@@ -374,7 +456,8 @@ export function analyzeStock(stockData) {
             stopPrice: parseFloat(stopPrice.toFixed(3)),
             target1: parseFloat(target1.toFixed(3)),
             target2: parseFloat(target2.toFixed(3)),
-            rr1: parseFloat(rr1.toFixed(2))
+            rr1: parseFloat(rr1.toFixed(2)),
+            rr2_price
         },
         planText: {
             entryTrigger,

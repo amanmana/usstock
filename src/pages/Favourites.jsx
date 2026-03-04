@@ -278,7 +278,7 @@ const FavouritesPage = () => {
                             </button>
                             <div className="p-8">
                                 <h3 className="text-2xl font-bold text-white mb-2">Track New Ticker</h3>
-                                <p className="text-gray-500 text-sm mb-6">Enter a Bursa Malaysia symbol (e.g. MAYBANK, PBBANK, AIRPORT) to start monitoring it.</p>
+                                <p className="text-gray-500 text-sm mb-6">Enter a US Market symbol (e.g. AAPL, MSFT, TSLA) to start monitoring it.</p>
 
                                 <form onSubmit={handleAddCustom} className="space-y-6">
                                     <div>
@@ -288,7 +288,7 @@ const FavouritesPage = () => {
                                             <input
                                                 autoFocus
                                                 type="text"
-                                                placeholder="e.g. 5209, GASMSIA, MAYBANK"
+                                                placeholder="e.g. AAPL, MSFT, TSLA"
                                                 value={newSymbol}
                                                 onChange={(e) => setNewSymbol(e.target.value.toUpperCase())}
                                                 className="w-full bg-surfaceHighlight border border-border rounded-xl py-4 pl-12 pr-4 text-white font-bold text-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-gray-600"
@@ -310,7 +310,19 @@ const FavouritesPage = () => {
                                                                     onClick={() => handleSelectStock(stock)}
                                                                     className="flex-1 px-4 py-3 text-left flex flex-col transition-colors"
                                                                 >
-                                                                    <span className="text-white font-bold group-hover:text-primary transition-colors">{stock.company_name}</span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-white font-bold group-hover:text-primary transition-colors text-sm">{stock.company_name}</span>
+                                                                        {stock.quoteType && (
+                                                                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${stock.quoteType === 'ETF' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                                                                                {stock.quoteType}
+                                                                            </span>
+                                                                        )}
+                                                                        {stock.is_yahoo_result && (
+                                                                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded border bg-orange-500/10 text-orange-400 border-orange-500/20">
+                                                                                Yahoo
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                     <span className="text-gray-500 text-xs font-mono">{stock.ticker_code}</span>
                                                                 </button>
                                                                 <button

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Heart, Users, Book, HelpCircle, LayoutDashboard, ClipboardCheck, TrendingUp } from 'lucide-react';
+import { Heart, Users, Book, HelpCircle, LayoutDashboard, ClipboardCheck, TrendingUp, Settings } from 'lucide-react';
 
 const Footer = () => {
     const [visitorCount, setVisitorCount] = useState(0);
@@ -21,6 +21,7 @@ const Footer = () => {
         { to: '/sop', label: 'SOP', icon: <ClipboardCheck className="w-3.5 h-3.5" />, color: 'emerald' },
         { to: '/help', label: 'Bantuan', icon: <HelpCircle className="w-3.5 h-3.5" />, color: 'primary' },
         { to: '/journal', label: 'Buku Strategi', icon: <Book className="w-3.5 h-3.5" />, color: 'purple' },
+        { to: '/stock-manager', label: 'Urus Saham', icon: <Settings className="w-3.5 h-3.5" />, color: 'indigo' },
     ];
 
     return (

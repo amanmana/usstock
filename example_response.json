@@ -1,0 +1,62 @@
+{
+    "tradePlan": {
+        "ticker": "AAPL",
+        "company_name": "Apple Inc.",
+        "shariah_status": "SHARIAH",
+        "snapshotScore10": 8.5,
+        "verdictLabel": "GO",
+        "convictionPct": 95,
+        "price": 185.92,
+        "sentiment4h": "BULLISH",
+        "lastCheckedAt": "2026-03-03T07:15:28.000Z",
+        "multiTimeframe": {
+            "tf15m": true,
+            "tf4h": true,
+            "tf1d": true,
+            "confirmedCount": 3,
+            "totalCount": 3
+        },
+        "indicators": {
+            "rsi14": 65.2,
+            "drawdownPct": 2.1,
+            "ma20": 182.45,
+            "ma50": 178.10,
+            "atr14": 4.25,
+            "stochK": 78.5,
+            "stochD": 72.1
+        },
+        "trade": {
+            "strategyLabel": "Momentum Trend",
+            "entryTriggerText": "Atas MA20 (Pegang / Beli masa turun)",
+            "entryPrice": 186.50,
+            "stopLoss": 175.20,
+            "tp1": 195.00,
+            "tp2": 210.00,
+            "rrRatio": 2.45,
+            "queuePrice": 186.50
+        },
+        "checklist": [
+            {
+                "label": "Macro Score: 8.5/10",
+                "passed": true
+            },
+            {
+                "label": "Risk/Reward: 2.45",
+                "passed": true
+            },
+            {
+                "label": "Daily HA Bullish",
+                "passed": true
+            },
+            {
+                "label": "4H MTF Confirmation",
+                "passed": true
+            },
+            {
+                "label": "Volume Strength",
+                "passed": true
+            }
+        ],
+        "systemVerdictText": "SIGNAL GO: Momentum 3/3 Bullish sempurna. Harga di atas semua EMA intraday utama. Cadangan: BELI / TAMBAH UNIT."
+    }
+}

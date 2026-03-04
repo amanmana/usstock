@@ -12,9 +12,10 @@ export function StockSearch({ onSelect, screenerResults, activeTab = 'rebound', 
     // Filter screener results locally first
     const safeResults = Array.isArray(screenerResults) ? screenerResults : [];
     const localMatches = safeResults.filter(s =>
-        (s.ticker || '').toLowerCase().includes(query.toLowerCase()) ||
-        (s.company || '').toLowerCase().includes(query.toLowerCase()) ||
-        (s.short_name && s.short_name.toLowerCase().includes(query.toLowerCase()))
+        (s.isShariah !== false) && // Filter out Non-Shariah from screener results
+        ((s.ticker || '').toLowerCase().includes(query.toLowerCase()) ||
+            (s.company || '').toLowerCase().includes(query.toLowerCase()) ||
+            (s.short_name && s.short_name.toLowerCase().includes(query.toLowerCase())))
     ).slice(0, 5);
 
     useEffect(() => {
@@ -40,9 +41,10 @@ export function StockSearch({ onSelect, screenerResults, activeTab = 'rebound', 
         try {
             // 1. Start with local screener results (priority)
             const screenerMatches = safeResults.filter(s =>
-                (s.ticker || '').toLowerCase().includes(val.toLowerCase()) ||
-                (s.company || '').toLowerCase().includes(val.toLowerCase()) ||
-                (s.short_name && s.short_name.toLowerCase().includes(val.toLowerCase()))
+                (s.isShariah !== false) &&
+                ((s.ticker || '').toLowerCase().includes(val.toLowerCase()) ||
+                    (s.company || '').toLowerCase().includes(val.toLowerCase()) ||
+                    (s.short_name && s.short_name.toLowerCase().includes(val.toLowerCase())))
             );
 
             // Use a Map to de-duplicate by ticker_full
@@ -63,6 +65,7 @@ export function StockSearch({ onSelect, screenerResults, activeTab = 'rebound', 
             const { data: globalMatches, error } = await supabase
                 .from('klse_stocks')
                 .select('ticker_code, company_name, ticker_full, short_name')
+                .eq('is_active', true) // Only show active stocks
                 .or(`ticker_code.ilike.%${val}%,company_name.ilike.%${val}%,short_name.ilike.%${val}%`)
                 .limit(10);
 

@@ -63,7 +63,7 @@ export const handler = async (event, context) => {
                     ha4h = {
                         status: isGreen ? 'GO' : 'WAIT',
                         reason: isReversal ? 'Reversal' : (isStrong ? 'Strong Bullish' : (isGreen ? 'Kekal Hijau' : 'Merah')),
-                        color: isGreen ? 'text-emerald-400' : 'text-red-400'
+                        color: isGreen ? 'Green' : 'Red'
                     };
                 }
             }
