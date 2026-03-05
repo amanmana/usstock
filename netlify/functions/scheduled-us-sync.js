@@ -3,41 +3,48 @@ import { fetchStockData } from './utils/scraper.js';
 import { getComputeUniverse } from './utils/universe.js';
 
 /**
- * Scheduled sync for the entire monitored universe (Top 300 + Favourites).
+ * Scheduled sync for the US Market segment of the Monitors Universe.
+ * Designed to run at 6:00 AM MYT to capture the session that just closed in NY.
  */
 export const handler = async (event, context) => {
-    console.log('Starting Scheduled Sync Universe...');
+    console.log('Starting Scheduled Sync US Market...');
 
     try {
         const today = new Date().toISOString().split('T')[0];
         const allStocks = await getComputeUniverse();
 
-        // Filter ONLY Bursa Stocks (market is MYR or KLSE)
-        const stocks = allStocks.filter(s => s.market === 'MYR' || s.market === 'KLSE');
+        // Filter ONLY US Stocks (market not MYR/KLSE)
+        const stocks = allStocks.filter(s => s.market !== 'MYR' && s.market !== 'KLSE');
 
-        if (!stocks || stocks.length === 0) return { statusCode: 200, body: 'Empty Bursa universe.' };
+        if (!stocks || stocks.length === 0) {
+            console.log('No US stocks found in universe.');
+            return { statusCode: 200, body: 'Empty US universe.' };
+        }
 
-        // 1. Create Job
+        console.log(`Syncing ${stocks.length} US stocks...`);
+
+        // 1. Create Job record
         const { data: newJob, error: createError } = await supabase
             .from('sync_jobs')
             .insert({
                 as_of_date: today,
                 status: 'running',
                 total_tickers: stocks.length,
-                processed_count: 0
+                processed_count: 0,
+                error_message: 'US Market Specific Sync'
             })
             .select()
             .single();
 
         if (createError) {
-            console.error('Failed to create job:', createError);
+            console.error('Failed to create US job:', createError);
             return { statusCode: 500 };
         }
 
         const jobId = newJob.id;
 
         // 2. Loop and Scrape
-        const BATCH_SIZE = 25; // Increased from 10
+        const BATCH_SIZE = 25;
         let processed = 0;
         let success = 0;
         let failed = 0;
@@ -49,11 +56,7 @@ export const handler = async (event, context) => {
 
             await Promise.all(chunk.map(async (stock) => {
                 try {
-                    let yfSymbol = stock.ticker_full;
-                    if ((stock.market === 'MYR' || stock.market === 'KLSE') && stock.ticker_code) {
-                        yfSymbol = stock.ticker_code.endsWith('.KL') ? stock.ticker_code : `${stock.ticker_code}.KL`;
-                    }
-                    const data = await fetchStockData(yfSymbol);
+                    const data = await fetchStockData(stock.ticker_full);
                     if (data) {
                         updates.push({
                             ticker_full: stock.ticker_full,
@@ -63,12 +66,12 @@ export const handler = async (event, context) => {
                             low: data.low,
                             close: data.close,
                             volume: data.volume,
-                            source: 'scheduled_scraper_live'
+                            source: 'scheduled_scraper_us_early'
                         });
                         success++;
                     } else {
                         failed++;
-                        logs.push({ job_id: jobId, ticker_full: stock.ticker_full, status: 'error', message: 'No data returned from scraper' });
+                        logs.push({ job_id: jobId, ticker_full: stock.ticker_full, status: 'error', message: 'No data returned from US scraper' });
                     }
                 } catch (e) {
                     failed++;
@@ -91,8 +94,7 @@ export const handler = async (event, context) => {
                 failed_count: failed
             }).eq('id', jobId);
 
-            // Minimal delay to prevent burst limits but stay under timeout
-            await new Promise(r => setTimeout(r, 250)); // Reduced from 1000
+            await new Promise(r => setTimeout(r, 250));
         }
 
         await supabase.from('sync_jobs')
@@ -102,26 +104,16 @@ export const handler = async (event, context) => {
             })
             .eq('id', jobId);
 
+        // Optional: Trigger screener calculation for US results separately if needed
+        // For now, let it be picked up by the next computeScreener run or user demand.
+
         return {
             statusCode: 200,
-            body: JSON.stringify({ status: 'done', processed, success, failed })
+            body: JSON.stringify({ status: 'done', processed, success, failed, market: 'US' })
         };
 
     } catch (err) {
-        console.error('Scheduled Sync Failed:', err);
-        // Important: Update job status so dashboard doesn't stay in "running" forever
-        try {
-            await supabase.from('sync_jobs')
-                .update({
-                    status: 'error',
-                    error_message: err.message,
-                    finished_at: new Date().toISOString()
-                })
-                .filter('status', 'eq', 'running'); // Best effort to catch current job
-        } catch (updateErr) {
-            console.error('Could not update job status to error:', updateErr);
-        }
-
+        console.error('US Scheduled Sync Failed:', err);
         return { statusCode: 500, body: err.message };
     }
 };

@@ -58,7 +58,15 @@ export const handler = async (event) => {
         const localTickers = new Set(localSorted.map(s => s.ticker_full));
         const newFromYahoo = yahooResults.filter(y => !localTickers.has(y.ticker_full));
 
-        const merged = [...localSorted, ...newFromYahoo].slice(0, 10);
+        const mergedRaw = [...localSorted, ...newFromYahoo];
+
+        // 4. Final deduplication by ticker_code to be absolutely sure
+        const seenCodes = new Set();
+        const merged = mergedRaw.filter(item => {
+            if (seenCodes.has(item.ticker_code)) return false;
+            seenCodes.add(item.ticker_code);
+            return true;
+        }).slice(0, 10);
 
         return {
             statusCode: 200,

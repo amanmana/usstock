@@ -3,19 +3,11 @@ import { Link, useLocation } from 'react-router-dom';
 import { Heart, Users, Book, HelpCircle, LayoutDashboard, ClipboardCheck, TrendingUp, Settings } from 'lucide-react';
 
 const Footer = () => {
-    const [visitorCount, setVisitorCount] = useState(0);
     const location = useLocation();
-
-    useEffect(() => {
-        // Fetch unique visitors
-        fetch('/.netlify/functions/visitors')
-            .then(res => res.json())
-            .then(data => setVisitorCount(data.count || 0))
-            .catch(err => console.error("Error fetching visitor count:", err));
-    }, [location.pathname]); // Refresh on navigation to show latest if needed
 
     const navLinks = [
         { to: '/', label: 'Dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5" />, color: 'gray' },
+        { to: '/bursa', label: 'Bursa 🇲🇾', icon: <TrendingUp className="w-3.5 h-3.5" />, color: 'emerald' },
         { to: '/favourites', label: 'Kegemaran', icon: <Heart className="w-3.5 h-3.5 fill-red-500 text-red-500" />, color: 'red' },
         { to: '/tradelog', label: 'Rekod Trade', icon: <TrendingUp className="w-3.5 h-3.5" />, color: 'orange' },
         { to: '/sop', label: 'SOP', icon: <ClipboardCheck className="w-3.5 h-3.5" />, color: 'emerald' },
@@ -26,7 +18,7 @@ const Footer = () => {
 
     return (
         <footer className="fixed bottom-0 left-0 w-full bg-[#0a0a0c]/80 backdrop-blur-xl border-t border-white/5 py-3 px-6 flex flex-col md:flex-row justify-between items-center z-[100] gap-4">
-            <div className="flex items-center gap-4 md:gap-8 flex-wrap justify-center">
+            <div className="flex items-center gap-4 md:gap-8 flex-wrap justify-center mx-auto md:mx-0">
                 <div className="text-[10px] text-gray-500 uppercase tracking-widest font-black hidden lg:block">
                     &copy; 2026 B.R.S
                 </div>
@@ -53,12 +45,6 @@ const Footer = () => {
                         );
                     })}
                 </div>
-            </div>
-
-            <div className="flex items-center gap-3 text-[10px] text-gray-500 font-black bg-white/5 px-4 py-1.5 rounded-full border border-white/5 shadow-2xl">
-                <Users className="w-3.5 h-3.5 text-primary" />
-                <span className="tracking-tighter uppercase opacity-70">Pelawat Unik:</span>
-                <span className="text-white font-mono">{(visitorCount || 0).toLocaleString()}</span>
             </div>
         </footer>
     );

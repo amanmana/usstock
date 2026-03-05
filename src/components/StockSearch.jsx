@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Loader2, ListFilter, Heart } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-export function StockSearch({ onSelect, screenerResults, activeTab = 'rebound', favouriteTickers = [], onToggleFavourite }) {
+export function StockSearch({ onSelect, screenerResults, activeTab = 'rebound', favouriteTickers = [], onToggleFavourite, market = null }) {
     const [query, setQuery] = useState('');
     const [suggestions, setSuggestions] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -11,12 +11,23 @@ export function StockSearch({ onSelect, screenerResults, activeTab = 'rebound', 
 
     // Filter screener results locally first
     const safeResults = Array.isArray(screenerResults) ? screenerResults : [];
-    const localMatches = safeResults.filter(s =>
-        (s.isShariah !== false) && // Filter out Non-Shariah from screener results
-        ((s.ticker || '').toLowerCase().includes(query.toLowerCase()) ||
-            (s.company || '').toLowerCase().includes(query.toLowerCase()) ||
-            (s.short_name && s.short_name.toLowerCase().includes(query.toLowerCase())))
-    ).slice(0, 5);
+    const localMatches = safeResults.filter(s => {
+        // Market filtering logic
+        if (market) {
+            if (market === 'MYR') {
+                if (s.market !== 'MYR' && s.market !== 'KLSE') return false;
+            } else if (market === 'USD') {
+                if (s.market === 'MYR' || s.market === 'KLSE') return false; // Exclude Bursa
+            } else if (s.market !== market) {
+                return false;
+            }
+        }
+
+        return (s.isShariah !== false) && // Filter out Non-Shariah from screener results
+            ((s.ticker || '').toLowerCase().includes(query.toLowerCase()) ||
+                (s.company || '').toLowerCase().includes(query.toLowerCase()) ||
+                (s.short_name && s.short_name.toLowerCase().includes(query.toLowerCase())))
+    }).slice(0, 5);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -40,12 +51,22 @@ export function StockSearch({ onSelect, screenerResults, activeTab = 'rebound', 
 
         try {
             // 1. Start with local screener results (priority)
-            const screenerMatches = safeResults.filter(s =>
-                (s.isShariah !== false) &&
-                ((s.ticker || '').toLowerCase().includes(val.toLowerCase()) ||
-                    (s.company || '').toLowerCase().includes(val.toLowerCase()) ||
-                    (s.short_name && s.short_name.toLowerCase().includes(val.toLowerCase())))
-            );
+            const screenerMatches = safeResults.filter(s => {
+                // Market filtering
+                if (market) {
+                    if (market === 'MYR') {
+                        if (s.market !== 'MYR' && s.market !== 'KLSE') return false;
+                    } else if (market === 'USD') {
+                        if (s.market === 'MYR' || s.market === 'KLSE') return false; // Exclude Bursa
+                    } else if (s.market !== market) {
+                        return false;
+                    }
+                }
+                return (s.isShariah !== false) &&
+                    ((s.ticker || '').toLowerCase().includes(val.toLowerCase()) ||
+                        (s.company || '').toLowerCase().includes(val.toLowerCase()) ||
+                        (s.short_name && s.short_name.toLowerCase().includes(val.toLowerCase())));
+            });
 
             // Use a Map to de-duplicate by ticker_full
             const uniqueResults = new Map();
@@ -62,10 +83,23 @@ export function StockSearch({ onSelect, screenerResults, activeTab = 'rebound', 
             });
 
             // 2. Search global database for missing ones
-            const { data: globalMatches, error } = await supabase
+            let queryBuilder = supabase
                 .from('klse_stocks')
-                .select('ticker_code, company_name, ticker_full, short_name')
-                .eq('is_active', true) // Only show active stocks
+                .select('ticker_code, company_name, ticker_full, short_name, market')
+                .eq('is_active', true);
+
+            if (market) {
+                if (market === 'MYR') {
+                    queryBuilder = queryBuilder.in('market', ['MYR', 'KLSE']);
+                } else if (market === 'USD') {
+                    // For US Dashboard, search for any US markets and exclude Bursa
+                    queryBuilder = queryBuilder.not('market', 'in', '("MYR","KLSE")');
+                } else {
+                    queryBuilder = queryBuilder.eq('market', market);
+                }
+            }
+
+            const { data: globalMatches, error } = await queryBuilder
                 .or(`ticker_code.ilike.%${val}%,company_name.ilike.%${val}%,short_name.ilike.%${val}%`)
                 .limit(10);
 
@@ -82,6 +116,7 @@ export function StockSearch({ onSelect, screenerResults, activeTab = 'rebound', 
                         company: g.company_name,
                         ticker_full: g.ticker_full,
                         inScreener: false,
+                        market: g.market,
                         score: '-',
                         close: 0,
                         stats: {},

@@ -6,7 +6,12 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Scheduled Function (Cron)
+# Scheduled Function (US Market Close)
+# Runs daily at 06:00 MYT (UTC+8) -> 22:00 UTC
+[functions.scheduled-us-sync]
+  schedule = "0 22 * * *"
+
+# Scheduled Function (Bursa Market Close)
 # Runs daily at 18:10 MYT (UTC+8) -> 10:10 UTC
 [functions.scheduled-sync]
   schedule = "10 10 * * *"

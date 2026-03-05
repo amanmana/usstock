@@ -44,7 +44,7 @@ export const handler = async (event) => {
 
         const { data: updated, error: updateErr } = await supabase
             .from('favourites')
-            .select('*')
+            .select('*, klse_stocks(company_name)')
             .eq('ticker_full', ticker)
             .single();
 
@@ -52,7 +52,10 @@ export const handler = async (event) => {
 
         return {
             statusCode: 200,
-            body: JSON.stringify(updated)
+            body: JSON.stringify({
+                ...updated,
+                company_name: updated.klse_stocks?.company_name
+            })
         };
     } catch (err) {
         return { statusCode: 500, body: err.message };

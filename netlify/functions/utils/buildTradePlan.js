@@ -8,8 +8,9 @@
  * @param {string} params.companyName
  * @param {string} params.shariahStatus
  * @param {Object} params.analysis - Output from analyzeIntraday
+ * @param {string} params.market
  */
-export function buildTradePlan({ ticker, companyName, shariahStatus, analysis }) {
+export function buildTradePlan({ ticker, companyName, shariahStatus, market, analysis }) {
     if (!analysis || analysis.error) {
         throw new Error(analysis?.error || 'Analysis data missing');
     }
@@ -53,6 +54,14 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, analysis })
     if (liveStock.isMinervini) bonus += 8;
     if (confirmedCount === totalCount && totalCount >= 2) bonus += 15;
     if (analysis.adviceType === 'buy' || confirmedCount >= 2) bonus += 10;
+
+    // Final Decision Step (Moved up slightly to use for conviction)
+    const isMTFAligned = confirmedCount === totalCount && totalCount >= 2;
+    const isHighConviction = score >= 8.0;
+    const isDoubleGoCandidate = rrRatio >= 2.0 && isMTFAligned && isHighConviction && (isPullback || isBreakout) && !isOverbought;
+
+    if (isDoubleGoCandidate) bonus += 15;
+
     convictionPct = Math.min(100, convictionPct + bonus);
 
     // 4. Decision Engine Logic (Rule-based)
@@ -106,8 +115,17 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, analysis })
         verdictLabel = "AVOID";
         advice = "RISIKO TINGGI: Nisbah risiko-ganjaran tidak menarik. Lebihkan tunai.";
     } else if (rrRatio >= 1.8 && (isPullback || isBreakout) && !isOverbought) {
-        verdictLabel = "GO";
-        advice = "PELUANG ENTRY: Syarat teknikal dipenuhi. Sesuai untuk beli mengikut strategi.";
+        // Double Go Trigger
+        const isMTFAligned = confirmedCount === totalCount && totalCount >= 2;
+        const isHighConviction = score >= 8.0;
+
+        if (isMTFAligned && isHighConviction && rrRatio >= 2.0) {
+            verdictLabel = "DOUBLE GO";
+            advice = "SAH: DOUBLE GO! Semua parameter (MTF, Setup, RR) dalam keadaan sempurna.";
+        } else {
+            verdictLabel = "GO";
+            advice = "PELUANG ENTRY: Syarat teknikal dipenuhi. Sesuai untuk beli mengikut strategi.";
+        }
     } else {
         verdictLabel = "WAIT";
         advice = "TUNGGU (WAIT): Menunggu kejelasan arah aliran atau 'pullback' yang lebih rapat ke MA20.";
@@ -116,28 +134,72 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, analysis })
     // 5. Checklist Construction with Notes (Refined for context)
     const checklist = [
         {
-            label: "Trend: MA20 > MA50",
-            value: isBullishTrend ? "Bullish" : "Bearish",
-            passed: isBullishTrend,
-            note: isBullishTrend ? "Trend menyokong kenaikan." : "Market dalam fasa lemah."
+            label: `Daily Score: ${score.toFixed(1)} / 10`,
+            value: score >= 7.0 ? "Strong" : "Weak",
+            passed: score >= 7.0,
+            note: score >= 7.0 ? "Trend & Score menyokong kenaikan." : "Market dalam fasa lemah."
         },
         {
-            label: `Momentum: RSI(${stats.rsi14?.toFixed(0) || "N/A"})`,
-            value: isOverbought ? "Overbought" : (isOversold ? "Oversold" : (isRSIHealthy ? "Healthy" : "Neutral")),
-            passed: isRSIHealthy || isOversold || (stats.rsi14 > 30 && stats.rsi14 < 70),
-            note: isOverbought ? "Amaran: Harga sudah mahal." : (isRSIHealthy ? "Momentum stabil untuk swing." : "Momentum neutral.")
-        },
-        {
-            label: "Setup Detection",
-            value: setupValue,
-            passed: setupPassed,
-            note: setupNote
-        },
-        {
-            label: "Risk/Reward Ratio",
+            label: "Risk/Reward Ratio (RR)",
             value: rrRatio ? rrRatio.toFixed(2) : "N/A",
-            passed: rrRatio >= 1.5,
-            note: rrRatio >= 2.0 ? "RR Sangat Menarik" : (rrRatio >= 1.5 ? "RR Diterima" : "RR Terlalu Kecil")
+            passed: rrRatio >= 2.0,
+            note: rrRatio >= 2.0 ? "RR Sangat Menarik (> 2.0)" : (rrRatio >= 1.5 ? "RR Diterima" : "RR Terlalu Kecil")
+        },
+        {
+            label: "Timeframe Alignment",
+            value: `${confirmedCount}/${totalCount}`,
+            passed: confirmedCount >= 2,
+            note: confirmedCount === totalCount ? "MTF Aligned (Strong)" : (confirmedCount >= 2 ? "Good Alignment" : "Alignment Lemah")
+        },
+        {
+            label: "Daily HA (Trend)",
+            value: liveStock.heikinAshiGo ? "Bullish" : "Monitor",
+            passed: !!liveStock.heikinAshiGo,
+            note: liveStock.heikinAshiGo ? "Heikin Ashi menunjukkan momentum." : "Trend belum selaras."
+        }
+    ];
+
+    // Added Logic: Check if it's actually "DOUBLE GO" candidate
+    if (verdictLabel === "DOUBLE GO") {
+        checklist.push({
+            label: "Double Go Status",
+            value: "QUALIFIED",
+            passed: true,
+            note: "Semua kriteria elit telah dipenuhi."
+        });
+    }
+
+    // 5b. Holding Checklist (Exit/Management Focused)
+    const holdingChecklist = [
+        {
+            label: "Target TP1 Hit?",
+            value: currentPrice >= tp1 ? "REACHED" : "PENDING",
+            passed: currentPrice >= tp1,
+            note: currentPrice >= tp1 ? "Mula rancang Take Profit." : "Belum capai target pertama."
+        },
+        {
+            label: "Normal Momentum?",
+            value: (stats.rsi14 >= 40 && stats.rsi14 <= 75) ? "HEALTHY" : (stats.rsi14 > 75 ? "O-BOUGHT" : "WEAK"),
+            passed: stats.rsi14 >= 40 && stats.rsi14 <= 75,
+            note: stats.rsi14 > 75 ? "Hati-hati, momentum melampau." : (stats.rsi14 < 40 ? "Momentum mula surut." : "Harga stabil untuk kenaikan.")
+        },
+        {
+            label: "Volume Normal?",
+            value: stats.isVolumeDistribution ? "SELL OFF" : "LOW VOL",
+            passed: !stats.isVolumeDistribution,
+            note: stats.isVolumeDistribution ? "Ada unsur jualan besar (Distribusi)." : "Tiada tekanan jualan agresif."
+        },
+        {
+            label: "Breakeven Secured?",
+            value: currentPrice >= entry ? "SAFE" : "AT RISK",
+            passed: currentPrice >= entry,
+            note: currentPrice >= entry ? "Anda berada dalam zon untung." : "Masih di bawah harga belian."
+        },
+        {
+            label: "Above MA10 Support?",
+            value: stats.ma10 ? (currentPrice > stats.ma10 ? "SUPPORTED" : "BROKEN") : "N/A",
+            passed: stats.ma10 ? currentPrice > stats.ma10 : true,
+            note: stats.ma10 && currentPrice < stats.ma10 ? "Trend pendek mula patah." : "Trend pendek masih Bullish."
         }
     ];
 
@@ -148,10 +210,13 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, analysis })
         shariah_status: shariahStatus || (liveStock.isShariah ? 'SHARIAH' : 'NON_SHARIAH') || "UNKNOWN",
 
         snapshotScore10: score,
+        momentumScore10: momentumScore,
         verdictLabel: verdictLabel,
         convictionPct: convictionPct,
 
         price: currentPrice,
+        currency: (market === 'MYR' || market === 'KLSE' || liveStock.market === 'MYR' || liveStock.market === 'KLSE') ? 'RM' : 'USD',
+        market: market || liveStock.market || 'US',
         sentiment4h: ha4h.status === 'GO' ? 'BULLISH' : (ha4h.status === 'SELL' ? 'BEARISH' : 'NEUTRAL'),
         lastCheckedAt: analysis.lastUpdated || new Date().toISOString(),
 
@@ -187,13 +252,15 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, analysis })
         },
 
         checklist: checklist,
-        systemVerdictText: advice
+        holdingChecklist: holdingChecklist,
+        systemVerdictText: advice,
+        raw: analysis
     };
 
     // Sanity Checks (Assertions)
     console.assert(tradePlan.convictionPct >= 0 && tradePlan.convictionPct <= 100, `convictionPct out of range: ${tradePlan.convictionPct}`);
     console.assert(tradePlan.snapshotScore10 >= 0 && tradePlan.snapshotScore10 <= 10, `snapshotScore10 out of range: ${tradePlan.snapshotScore10}`);
-    console.assert(['AVOID', 'WAIT', 'GO'].includes(tradePlan.verdictLabel), `Invalid verdictLabel: ${tradePlan.verdictLabel}`);
+    console.assert(['AVOID', 'WAIT', 'GO', 'DOUBLE GO'].includes(tradePlan.verdictLabel), `Invalid verdictLabel: ${tradePlan.verdictLabel}`);
     console.assert(Array.isArray(tradePlan.checklist), 'Checklist must be an array');
 
     return tradePlan;

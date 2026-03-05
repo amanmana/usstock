@@ -1,5 +1,5 @@
 import { fetchStockData } from './utils/scraper.js';
-
+import { supabase } from './utils/supabaseClient.js';
 export const handler = async (event, context) => {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'POST required' };
 
@@ -13,14 +13,47 @@ export const handler = async (event, context) => {
 
         console.log(`Fetching latest prices for ${tickers.length} tickers...`);
 
+        // Fetch DB metadata for Bursa stocks
+        const { data: stockInfoList } = await supabase
+            .from('klse_stocks')
+            .select('ticker_full, ticker_code, market')
+            .in('ticker_full', tickers);
+
+        const stockMap = {};
+        if (stockInfoList) {
+            stockInfoList.forEach(s => { stockMap[s.ticker_full] = s; });
+        }
+
         // Fetch prices in parallel
         const pricePromises = tickers.map(async (ticker) => {
-            const data = await fetchStockData(ticker);
+            let yfSymbol = ticker;
+            const sInfo = stockMap[ticker];
+
+            // Map to numeric ticker if available in local DB for Bursa stocks
+            if (sInfo && (sInfo.market === 'MYR' || sInfo.market === 'KLSE')) {
+                // Prioritize numeric code for Yahoo chart API stability
+                if (sInfo.ticker_code && /^\d+$/.test(sInfo.ticker_code)) {
+                    yfSymbol = `${sInfo.ticker_code}.KL`;
+                } else {
+                    // Fallback to ticker_full or search pattern
+                    yfSymbol = ticker.endsWith('.KL') ? ticker : `${ticker}.KL`;
+                }
+            }
+
+            const data = await fetchStockData(yfSymbol);
+
+            // If primary fetch failed and it was a name-based ticker, try numeric if we find one
+            let finalData = data;
+            if (!finalData && ticker.endsWith('.KL') && !/^\d+\.KL$/.test(ticker)) {
+                // No price for alpha symbol like MHB.KL, and we didn't have sInfo.ticker_code before
+                // (Wait, we already checked stockMap if it exists)
+            }
+
             return {
                 ticker,
-                close: data?.close || null,
-                volume: data?.volume || null,
-                priceDate: data?.priceDate || null,
+                close: finalData?.close || null,
+                volume: finalData?.volume || null,
+                priceDate: finalData?.priceDate || null,
                 timestamp: new Date().toISOString()
             };
         });

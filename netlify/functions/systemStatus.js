@@ -31,11 +31,10 @@ export const handler = async (event, context) => {
             }
         }
 
-        // 2. Get Last Successful Sync Job
+        // 2. Get Last Sync Job (Regardless of status, to show current progress)
         const { data: lastJob } = await supabase
             .from('sync_jobs')
             .select('*')
-            .eq('status', 'done')
             .order('created_at', { ascending: false })
             .limit(1)
             .single();
@@ -54,9 +53,12 @@ export const handler = async (event, context) => {
                     realProgressMA50: Math.min(100, Math.round((realDays / 50) * 100))
                 },
                 lastSync: lastJob ? {
+                    id: lastJob.id,
                     date: lastJob.created_at,
                     finishedAt: lastJob.finished_at,
-                    count: lastJob.processed_count
+                    count: lastJob.processed_count,
+                    total: lastJob.total_tickers,
+                    status: lastJob.status // 'done', 'running', 'error'
                 } : null
             })
         };

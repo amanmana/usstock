@@ -58,7 +58,7 @@ export const handler = async (event) => {
                 // Scrub latest data
                 let liveData = null;
                 try {
-                    liveData = await fetchStockData(ticker.split('.')[0]);
+                    liveData = await fetchStockData(item.ticker_full);
                 } catch (e) {
                     console.warn(`Scraper failed for ${ticker}, using db price.`);
                 }
@@ -82,8 +82,8 @@ export const handler = async (event) => {
 
                 // 3. Run Technical Analysis
                 const result = analyzeStock({
-                    code: ticker.split('.')[0],
-                    company: ticker.split('.')[0],
+                    code: item.ticker_full,
+                    company: item.ticker_full,
                     prices: priceData
                 });
 
@@ -102,13 +102,14 @@ export const handler = async (event) => {
                 // --- SIGNAL GO ALERT ---
                 if (item.alert_go && currentVerdict === "GO" && item.last_alert_status !== "GO") {
                     console.log(`ALERT: ${ticker} hit GO!`);
+                    const currency = item.market === 'MYR' || item.market === 'KLSE' ? 'RM' : '$';
                     const message = `🚀 *SIGNAL GO: ${ticker}*\n\n` +
-                        `💹 *Price*: RM ${currentPrice.toFixed(3)}\n` +
-                        `🎯 *Target*: RM ${result.levels.target1.toFixed(3)}\n` +
-                        `🛡️ *Stop*: RM ${result.levels.stopPrice.toFixed(3)}\n` +
+                        `💹 *Price*: ${currency} ${currentPrice.toFixed(3)}\n` +
+                        `🎯 *Target*: ${currency} ${result.levels.target1.toFixed(3)}\n` +
+                        `🛡️ *Stop*: ${currency} ${result.levels.stopPrice.toFixed(3)}\n` +
                         `📊 *Score*: ${score.toFixed(1)}\n` +
                         `⚖️ *RR Ratio*: ${rr.toFixed(2)}\n\n` +
-                        `🔗 [View Screener](${process.env.URL || 'https://bursa-rebound-screener.netlify.app'})`;
+                        `🔗 [View Screener](${process.env.URL || 'https://usstock.netlify.app'})`;
 
                     await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, { chat_id: chatId, text: message, parse_mode: 'Markdown' });
                 }
@@ -117,12 +118,13 @@ export const handler = async (event) => {
                 if (item.alert_tp && pos && pos.target_price > 0 && currentPrice >= pos.target_price) {
                     // Only alert if we haven't alerted for this price yet (or if price has reset)
                     if (item.last_tp_price !== currentPrice) {
+                        const currency = item.market === 'MYR' || item.market === 'KLSE' ? 'RM' : '$';
                         console.log(`ALERT: ${ticker} hit TP!`);
                         const pl = ((currentPrice - pos.entry_price) / pos.entry_price * 100).toFixed(2);
                         const message = `🎯 *TARGET REACHED (TP): ${ticker}*\n\n` +
-                            `💰 *Sell Price*: RM ${currentPrice.toFixed(3)}\n` +
+                            `💰 *Sell Price*: ${currency} ${currentPrice.toFixed(3)}\n` +
                             `📈 *Profit*: +${pl}%\n` +
-                            `📝 *Plan*: Target RM ${pos.target_price.toFixed(3)}\n\n` +
+                            `📝 *Plan*: Target ${currency} ${pos.target_price.toFixed(3)}\n\n` +
                             `🎉 Masa yang tepat untuk tuai hasil!`;
 
                         await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, { chat_id: chatId, text: message, parse_mode: 'Markdown' });
@@ -133,12 +135,13 @@ export const handler = async (event) => {
                 // --- STOP LOSS (SL) ALERT ---
                 if (item.alert_sl && pos && pos.stop_loss > 0 && currentPrice <= pos.stop_loss) {
                     if (item.last_sl_price !== currentPrice) {
+                        const currency = item.market === 'MYR' || item.market === 'KLSE' ? 'RM' : '$';
                         console.log(`ALERT: ${ticker} hit SL!`);
                         const pl = ((currentPrice - pos.entry_price) / pos.entry_price * 100).toFixed(2);
                         const message = `🛡️ *STOP LOSS HIT: ${ticker}*\n\n` +
-                            `🚨 *Price*: RM ${currentPrice.toFixed(3)}\n` +
+                            `🚨 *Price*: ${currency} ${currentPrice.toFixed(3)}\n` +
                             `📉 *Loss*: ${pl}%\n` +
-                            `📝 *Plan*: SL RM ${pos.stop_loss.toFixed(3)}\n\n` +
+                            `📝 *Plan*: SL ${currency} ${pos.stop_loss.toFixed(3)}\n\n` +
                             `⚠️ Disiplin adalah kunci. Kawal risiko anda.`;
 
                         await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, { chat_id: chatId, text: message, parse_mode: 'Markdown' });

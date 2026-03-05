@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Trash2, TrendingUp, BarChart2, DollarSign, Target, Hash, ShieldAlert, Calculator } from 'lucide-react';
+import { Save, Trash2, TrendingUp, BarChart2, DollarSign, Target, Hash, ShieldAlert, Calculator, Activity } from 'lucide-react';
 
-export function PositionManager({ ticker, currentPrice, market, existingPosition, technicalLevels, recommendedStrategy, onSave, onRemove, onSell }) {
+// Helper for formatting prices
+const formatP = (val, decimals = 3) => {
+    if (val === null || val === undefined) return "—";
+    const num = parseFloat(val);
+    if (isNaN(num)) return "—";
+    return num.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+};
+
+export function PositionManager({ ticker, currentPrice, market = 'US', existingPosition, technicalLevels, recommendedStrategy, onSave, onRemove, onSell }) {
+    const isBursa = market === 'MYR' || market === 'KLSE';
+    const currency = isBursa ? 'RM' : 'USD';
+
     const [entryPrice, setEntryPrice] = useState(existingPosition?.entryPrice || currentPrice || '');
     const [strategy, setStrategy] = useState(existingPosition?.strategy || recommendedStrategy || 'momentum');
     const [quantity, setQuantity] = useState(existingPosition?.quantity || '');
@@ -56,31 +67,45 @@ export function PositionManager({ ticker, currentPrice, market, existingPosition
     }, [entryPrice, existingPosition, technicalLevels]);
 
     const sizing = React.useMemo(() => {
-        if (!entryPrice || !stopLoss || !maxRisk) return { suggestedLots: 0, potentialProfit: 0, totalInvestment: 0, rr: 0 };
-        const entry = parseFloat(entryPrice);
         const sl = parseFloat(stopLoss);
         const tp = targetPrice ? parseFloat(targetPrice) : 0;
+        const sweetSpot = tp && sl ? (tp + (2 * sl)) / 3 : null;
 
-        if (entry <= sl) return { suggestedLots: 0, potentialProfit: 0, totalInvestment: 0, rr: 0 };
+        if (!entryPrice || !stopLoss) {
+            return {
+                suggestedLots: 0,
+                potentialProfit: 0,
+                totalInvestment: 0,
+                rr: 0,
+                sweetSpot: sweetSpot && sweetSpot < tp ? sweetSpot.toFixed(3) : null
+            };
+        }
+
+        const entry = parseFloat(entryPrice);
+        const risk = maxRisk ? parseFloat(maxRisk) : (isBursa ? 200 : 50);
+
+        if (entry <= sl) {
+            return {
+                suggestedLots: 0,
+                potentialProfit: 0,
+                totalInvestment: 0,
+                rr: 0,
+                sweetSpot: sweetSpot && sweetSpot < tp ? sweetSpot.toFixed(3) : null
+            };
+        }
 
         const riskPerUnit = entry - sl;
+        let actualUnits = risk / riskPerUnit;
 
-        // Default to USD/Shares logic for this project
-        const lotSize = 1;
-        const actualUnits = maxRisk / riskPerUnit;
+        // Bursa Malaysia: Round down to nearest 100 (1 lot)
+        if (isBursa) {
+            actualUnits = Math.floor(actualUnits / 100) * 100;
+        }
 
         const suggestedLots = actualUnits;
-
         const potentialProfit = tp > entry ? (tp - entry) * actualUnits : 0;
         const totalInvestment = entry * actualUnits;
-        const rr = (tp - entry) / riskPerUnit;
-
-        // Sweet Spot Calculation (Target RR 2.0)
-        // (tp - entry) / (entry - sl) = 2
-        // tp - entry = 2 * entry - 2 * sl
-        // tp + 2 * sl = 3 * entry
-        // entry = (tp + 2 * sl) / 3
-        const sweetSpot = tp && sl ? (tp + (2 * sl)) / 3 : null;
+        const rr = riskPerUnit > 0 ? (tp - entry) / riskPerUnit : 0;
 
         return {
             suggestedLots,
@@ -89,7 +114,7 @@ export function PositionManager({ ticker, currentPrice, market, existingPosition
             rr: tp > entry ? rr.toFixed(2) : 0,
             sweetSpot: sweetSpot && sweetSpot < tp ? sweetSpot.toFixed(3) : null
         };
-    }, [entryPrice, stopLoss, targetPrice, maxRisk]);
+    }, [entryPrice, stopLoss, targetPrice, maxRisk, isBursa]);
 
     // Capital-based sizing
     const capitalSizing = React.useMemo(() => {
@@ -100,23 +125,31 @@ export function PositionManager({ ticker, currentPrice, market, existingPosition
         const tp = targetPrice ? parseFloat(targetPrice) : 0;
         if (entry <= 0 || capital <= 0) return { shares: 0, potentialProfit: 0, rr: 0 };
 
-        const shares = capital / entry;
+        let shares = capital / entry;
+
+        // Bursa Malaysia: Round down to nearest 100 (1 lot)
+        if (isBursa) {
+            shares = Math.floor(shares / 100) * 100;
+        }
+
         const potentialProfit = tp > entry ? (tp - entry) * shares : 0;
         const riskPerUnit = sl > 0 ? entry - sl : 0;
         const rr = riskPerUnit > 0 && tp > entry ? ((tp - entry) / riskPerUnit).toFixed(2) : 0;
 
         return { shares, potentialProfit, rr };
-    }, [entryPrice, capitalAmount, stopLoss, targetPrice]);
+    }, [entryPrice, capitalAmount, stopLoss, targetPrice, isBursa]);
 
     const handleApplySizing = () => {
         if (calcMode === 'capital') {
             if (capitalSizing.shares > 0) {
-                setQuantity(capitalSizing.shares.toFixed(4));
+                const finalQty = capitalSizing.shares;
+                setQuantity(isBursa ? finalQty.toString() : finalQty.toFixed(4));
                 setShowRiskCalc(false);
             }
         } else {
             if (sizing.suggestedLots > 0) {
-                setQuantity(sizing.suggestedLots.toFixed(4));
+                const finalQty = sizing.suggestedLots;
+                setQuantity(isBursa ? finalQty.toString() : finalQty.toFixed(4));
                 setShowRiskCalc(false);
             }
         }
@@ -124,7 +157,7 @@ export function PositionManager({ ticker, currentPrice, market, existingPosition
 
     const handleSave = () => {
         if (!entryPrice) return;
-        onSave({
+        onSave(ticker, {
             entryPrice: parseFloat(entryPrice),
             strategy,
             quantity: quantity ? parseFloat(quantity) : 0,
@@ -186,13 +219,13 @@ export function PositionManager({ ticker, currentPrice, market, existingPosition
                                 {stopLoss && (
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-gray-500 uppercase text-[9px]">SL</span>
-                                        <span className="text-red-400">USD {stopLoss}</span>
+                                        <span className="text-red-400">{currency} {stopLoss}</span>
                                     </div>
                                 )}
                                 {targetPrice && (
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-gray-500 uppercase text-[9px]">TP</span>
-                                        <span className="text-emerald-400">USD {targetPrice}</span>
+                                        <span className="text-emerald-400">{currency} {targetPrice}</span>
                                     </div>
                                 )}
                             </div>
@@ -209,7 +242,7 @@ export function PositionManager({ ticker, currentPrice, market, existingPosition
                                     onClick={() => setStopLoss(parseFloat(technicalLevels.trailingStop).toFixed(3))}
                                     className={`text-[10px] font-black text-white px-2 py-0.5 rounded border transition-all ${parseFloat(technicalLevels.trailingStop) >= parseFloat(existingPosition.entryPrice) ? 'bg-emerald-500/20 border-emerald-500/30 hover:bg-emerald-500/40' : 'bg-indigo-500/20 border-indigo-500/30 hover:bg-indigo-500/40'}`}
                                 >
-                                    SET TO USD {parseFloat(technicalLevels.trailingStop).toFixed(3)}
+                                    SET TO {currency} {parseFloat(technicalLevels.trailingStop).toFixed(3)}
                                 </button>
                             </div>
                         )}
@@ -245,34 +278,50 @@ export function PositionManager({ ticker, currentPrice, market, existingPosition
                         </div>
                         {/* Risk Mode */}
                         {calcMode === 'risk' && (
-                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-[9px] text-indigo-300/60 uppercase font-bold ml-1">Max Risk (USD)</label>
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-indigo-300/60 uppercase font-black tracking-widest ml-1">Max Risk ({currency})</label>
                                     <input
                                         type="number"
                                         value={maxRisk}
                                         onChange={(e) => setMaxRisk(e.target.value)}
-                                        className="w-full bg-background/40 border border-indigo-500/20 rounded-lg px-3 py-2 text-xs text-white"
+                                        className="w-full bg-background/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500/50 outline-none transition-all"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[9px] text-indigo-300/60 uppercase font-bold ml-1">Stop Loss Price</label>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-indigo-300/60 uppercase font-black tracking-widest ml-1">Stop Loss Price</label>
                                     <input
                                         type="number"
                                         step="0.001"
                                         value={stopLoss}
                                         onChange={(e) => setStopLoss(e.target.value)}
-                                        className="w-full bg-background/40 border border-indigo-500/20 rounded-lg px-3 py-2 text-xs text-white"
+                                        className="w-full bg-background/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500/50 outline-none transition-all"
                                     />
                                 </div>
-                                <div className="space-y-1.5 col-span-2 lg:col-span-1 text-indigo-400">
-                                    <label className="text-[9px] text-indigo-400/60 uppercase font-bold ml-1">Target Price (TP)</label>
+                                <div className="space-y-2 col-span-2 lg:col-span-1">
+                                    <div className="flex items-center justify-between ml-1">
+                                        <label className="text-[10px] text-indigo-300/60 uppercase font-black tracking-widest">Target Price (TP)</label>
+                                        <div className="flex gap-1">
+                                            {technicalLevels?.tp1 && (
+                                                <button
+                                                    onClick={() => setTargetPrice(parseFloat(technicalLevels.tp1).toFixed(3))}
+                                                    className={`text-[8px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter transition-all ${parseFloat(targetPrice) === parseFloat(technicalLevels.tp1) ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-gray-500 border-white/10 hover:border-indigo-500/50'}`}
+                                                >TP1</button>
+                                            )}
+                                            {technicalLevels?.tp2 && (
+                                                <button
+                                                    onClick={() => setTargetPrice(parseFloat(technicalLevels.tp2).toFixed(3))}
+                                                    className={`text-[8px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter transition-all ${parseFloat(targetPrice) === parseFloat(technicalLevels.tp2) ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-gray-500 border-white/10 hover:border-indigo-500/50'}`}
+                                                >TP2</button>
+                                            )}
+                                        </div>
+                                    </div>
                                     <input
                                         type="number"
                                         step="0.001"
                                         value={targetPrice}
                                         onChange={(e) => setTargetPrice(e.target.value)}
-                                        className="w-full bg-background/60 border border-indigo-500/40 rounded-lg px-3 py-2 text-xs text-white font-black"
+                                        className="w-full bg-background/50 border border-indigo-500/40 rounded-xl px-4 py-2.5 text-sm text-white font-black focus:border-indigo-500 outline-none transition-all"
                                         placeholder="Target Price"
                                     />
                                 </div>
@@ -281,177 +330,253 @@ export function PositionManager({ ticker, currentPrice, market, existingPosition
 
                         {/* Capital Mode */}
                         {calcMode === 'capital' && (
-                            <div className="grid grid-cols-3 gap-3 mb-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-[9px] text-emerald-300/70 uppercase font-bold ml-1">💰 Modal (USD)</label>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-emerald-300/70 uppercase font-black tracking-widest ml-1">💰 Modal ({currency})</label>
                                     <input
                                         type="number"
                                         value={capitalAmount}
                                         onChange={(e) => setCapitalAmount(e.target.value)}
-                                        className="w-full bg-background/40 border border-emerald-500/30 rounded-lg px-3 py-2 text-xs text-white font-normal"
+                                        className="w-full bg-background/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-emerald-500/50 outline-none transition-all"
                                         placeholder="e.g. 1000"
                                         autoFocus
                                     />
                                 </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[9px] text-indigo-300/60 uppercase font-bold ml-1">Stop Loss Price</label>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-indigo-300/60 uppercase font-black tracking-widest ml-1">Stop Loss Price</label>
                                     <input
                                         type="number"
                                         step="0.001"
                                         value={stopLoss}
                                         onChange={(e) => setStopLoss(e.target.value)}
-                                        className="w-full bg-background/40 border border-indigo-500/20 rounded-lg px-3 py-2 text-xs text-white"
+                                        className="w-full bg-background/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-indigo-500/50 outline-none transition-all"
                                     />
                                 </div>
-                                <div className="space-y-1.5 text-indigo-400">
-                                    <label className="text-[9px] text-indigo-400/60 uppercase font-bold ml-1">Target Price (TP)</label>
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between ml-1">
+                                        <label className="text-[10px] text-indigo-400/60 uppercase font-black tracking-widest">Target Price (TP)</label>
+                                        <div className="flex gap-1">
+                                            {technicalLevels?.tp1 && (
+                                                <button
+                                                    onClick={() => setTargetPrice(parseFloat(technicalLevels.tp1).toFixed(3))}
+                                                    className={`text-[8px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter transition-all ${parseFloat(targetPrice) === parseFloat(technicalLevels.tp1) ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-gray-500 border-white/10 hover:border-indigo-500/50'}`}
+                                                >TP1</button>
+                                            )}
+                                            {technicalLevels?.tp2 && (
+                                                <button
+                                                    onClick={() => setTargetPrice(parseFloat(technicalLevels.tp2).toFixed(3))}
+                                                    className={`text-[8px] px-1.5 py-0.5 rounded-md border font-black uppercase tracking-tighter transition-all ${parseFloat(targetPrice) === parseFloat(technicalLevels.tp2) ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white/5 text-gray-500 border-white/10 hover:border-indigo-500/50'}`}
+                                                >TP2</button>
+                                            )}
+                                        </div>
+                                    </div>
                                     <input
                                         type="number"
                                         step="0.001"
                                         value={targetPrice}
                                         onChange={(e) => setTargetPrice(e.target.value)}
-                                        className="w-full bg-background/60 border border-indigo-500/40 rounded-lg px-3 py-2 text-xs text-white font-black"
+                                        className="w-full bg-background/50 border border-indigo-500/40 rounded-xl px-4 py-2.5 text-sm text-white font-black focus:border-indigo-500 outline-none transition-all"
                                         placeholder="Target Price"
                                     />
                                 </div>
                             </div>
                         )}
 
-                        <div className="flex items-center justify-between bg-indigo-500/10 rounded-lg px-4 py-4 border border-indigo-500/10">
-                            <div className="flex gap-6">
-                                <div>
-                                    <div className="text-[10px] text-indigo-300/70 font-bold uppercase">Suggested Shares</div>
-                                    {calcMode === 'risk' ? (
-                                        <>
-                                            <div className="text-xl font-black text-white">{sizing.suggestedLots % 1 === 0 ? sizing.suggestedLots : sizing.suggestedLots.toFixed(4)} <span className="text-[10px] font-normal text-indigo-300/50 uppercase">Shares</span></div>
-                                            <div className="text-[9px] text-indigo-300/40 font-bold mt-1">
-                                                Modal: USD {sizing.totalInvestment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <div className="relative group overflow-hidden bg-gradient-to-br from-indigo-500/10 via-background to-purple-500/5 rounded-2xl p-6 border border-indigo-500/20 shadow-2xl transition-all hover:border-indigo-500/40 max-w-3xl mx-auto">
+                            {/* Accent line */}
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 opacity-50"></div>
+
+                            <div className="grid grid-cols-2 gap-8 relative z-10">
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="text-[10px] text-indigo-300/70 font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                            <Hash className="w-3 h-3" />
+                                            {isBursa ? "Suggested Choice" : "Suggested Shares"}
+                                        </div>
+                                        {calcMode === 'risk' ? (
+                                            <div className="flex flex-col">
+                                                <div className="text-xl font-black text-white tracking-tighter">
+                                                    {isBursa ? (
+                                                        <span className="flex items-baseline gap-1.5">
+                                                            {(sizing.suggestedLots / 100).toLocaleString()} <span className="text-[10px] font-bold text-indigo-400/60 uppercase">Lots</span>
+                                                        </span>
+                                                    ) : (
+                                                        sizing.suggestedLots % 1 === 0 ? sizing.suggestedLots.toLocaleString() : sizing.suggestedLots.toFixed(4)
+                                                    )}
+                                                </div>
+                                                {isBursa && (
+                                                    <div className="text-[10px] text-indigo-300/40 font-bold uppercase tracking-widest">
+                                                        {sizing.suggestedLots.toLocaleString()} units
+                                                    </div>
+                                                )}
                                             </div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="text-xl font-black text-emerald-400">{capitalSizing.shares > 0 ? capitalSizing.shares.toFixed(4) : '—'} <span className="text-[10px] font-normal text-emerald-300/50 uppercase">Shares</span></div>
-                                            <div className="text-[9px] text-emerald-300/50 font-bold mt-1">
-                                                Modal: USD {capitalAmount ? parseFloat(capitalAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
+                                        ) : (
+                                            <div className="flex flex-col">
+                                                <div className="text-xl font-black text-emerald-400 tracking-tighter">
+                                                    {capitalSizing.shares > 0 ? (
+                                                        isBursa ? (
+                                                            <span className="flex items-baseline gap-1.5">
+                                                                {(capitalSizing.shares / 100).toLocaleString()} <span className="text-[10px] font-bold text-emerald-400/60 uppercase">Lots</span>
+                                                            </span>
+                                                        ) : capitalSizing.shares.toFixed(4)
+                                                    ) : '—'}
+                                                </div>
+                                                {isBursa && capitalSizing.shares > 0 && (
+                                                    <div className="text-[10px] text-emerald-300/40 font-bold uppercase tracking-widest">
+                                                        {capitalSizing.shares.toLocaleString()} units
+                                                    </div>
+                                                )}
                                             </div>
-                                        </>
-                                    )}
+                                        )}
+                                    </div>
+
+                                    <div className="pt-2 border-t border-white/5">
+                                        <div className="text-[10px] text-indigo-300/40 font-black uppercase tracking-widest mb-1">Total Investment</div>
+                                        <div className="text-sm font-black text-indigo-300">
+                                            {currency} {(calcMode === 'risk' ? sizing.totalInvestment : (capitalAmount ? parseFloat(capitalAmount) : 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="h-10 w-px bg-white/5"></div>
-                                <div>
-                                    <div className="text-[10px] text-emerald-400/70 font-bold uppercase">Potential Profit</div>
-                                    <div className="text-xl font-black text-emerald-400">
-                                        <span className="text-xs mr-1 opacity-60">USD</span>
-                                        {calcMode === 'risk' ? sizing.potentialProfit.toFixed(1) : capitalSizing.potentialProfit.toFixed(1)}
+
+                                <div className="space-y-4 border-l border-white/5 pl-8 flex flex-col justify-between">
+                                    <div>
+                                        <div className="text-[10px] text-emerald-400/70 font-black uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                            <TrendingUp className="w-3 h-3" /> Potential Profit
+                                        </div>
+                                        <div className="text-xl font-black text-emerald-400 tracking-tighter">
+                                            <span className="text-xs mr-1 opacity-60 font-bold">{currency}</span>
+                                            {(calcMode === 'risk' ? sizing.potentialProfit : capitalSizing.potentialProfit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </div>
+                                        <div className="text-[10px] text-emerald-400/40 font-bold uppercase tracking-widest mt-1">
+                                            Net Gain Estimation
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end pt-4">
+                                        <button
+                                            onClick={handleApplySizing}
+                                            className="group/btn relative bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black px-6 py-3 rounded-xl transition-all shadow-xl shadow-indigo-500/20 active:scale-95 flex items-center gap-2 overflow-hidden"
+                                        >
+                                            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-700"></div>
+                                            <Save className="w-3.5 h-3.5" />
+                                            USE SIZING
+                                        </button>
                                     </div>
                                 </div>
                             </div>
-                            <button
-                                onClick={handleApplySizing}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black px-4 py-2.5 rounded-lg transition-all shadow-lg shadow-indigo-500/20"
-                            >
-                                USE SIZING
-                            </button>
+
+                            {/* Decorative background element */}
+                            <Activity className="absolute bottom-[-10px] right-[-10px] w-32 h-32 text-indigo-500/5 rotate-[-15deg] pointer-events-none" />
                         </div>
                     </div>
                 )}
 
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Entry Price */}
-                    <div className="flex flex-col gap-2">
-                        <label className="text-[9px] text-gray-500 uppercase font-black tracking-tighter flex items-center gap-1.5 ml-1">
-                            <DollarSign className="w-3 h-3 text-gray-600" /> Entry Price (USD)
-                        </label>
-                        <div className="relative group">
-                            <input
-                                type="number"
-                                step="0.001"
-                                value={entryPrice}
-                                onChange={(e) => setEntryPrice(e.target.value)}
-                                className="w-full bg-background/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 outline-none transition-all placeholder:text-gray-700"
-                                placeholder="0.000"
-                            />
+                <div className="max-w-xl mx-auto space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+                        {/* Entry Price */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest flex items-center gap-2 ml-1">
+                                <DollarSign className="w-3.5 h-3.5 text-gray-600" /> Entry Price ({currency})
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    step="any"
+                                    value={entryPrice}
+                                    onChange={(e) => setEntryPrice(e.target.value)}
+                                    className="w-full bg-background/50 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500/50 outline-none transition-all placeholder:text-gray-700 font-bold"
+                                    placeholder="0.000"
+                                />
+                            </div>
                             {sizing.sweetSpot && (
-                                <button
-                                    onClick={() => setEntryPrice(sizing.sweetSpot)}
-                                    className="mt-1.5 ml-1 text-[9px] font-bold text-emerald-400/60 hover:text-emerald-400 transition-colors uppercase tracking-widest flex items-center gap-1 group/ss"
-                                >
-                                    <Target className="w-2.5 h-2.5 transition-transform group-hover/ss:scale-110" />
-                                    QUE PRICE (RR 2.0): <span className="text-white">USD {sizing.sweetSpot}</span>
-                                </button>
+                                <div className="flex items-center justify-between ml-1 px-1">
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[9px] font-bold text-gray-600 uppercase tracking-tighter">Zon Selesa:</span>
+                                        <span className="text-[9px] font-black text-emerald-400/80 uppercase tracking-widest">{currency} {formatP(sizing.sweetSpot)}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => setEntryPrice(sizing.sweetSpot)}
+                                        className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-all group/rr active:scale-95"
+                                        title={`Set Entry to RR 2.0: ${currency} ${formatP(sizing.sweetSpot)}`}
+                                    >
+                                        <Target className="w-3 h-3 text-emerald-400/60 group-hover/rr:text-emerald-400 transition-colors" />
+                                        <span className="text-[9px] font-black text-emerald-400/60 group-hover/rr:text-emerald-400 uppercase tracking-tighter">RR 2.0</span>
+                                    </button>
+                                </div>
                             )}
+                        </div>
+
+                        {/* Quantity */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] text-gray-500 uppercase font-black tracking-widest flex items-center gap-2 ml-1">
+                                <Hash className="w-3.5 h-3.5 text-gray-600" /> Quantity {isBursa ? '(Lots)' : '(Shares)'}
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    step="any"
+                                    value={isBursa ? (parseFloat(quantity) / 100 || '') : quantity}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setQuantity(isBursa ? (parseFloat(val) * 100).toString() : val);
+                                    }}
+                                    className="w-full bg-background/50 border border-white/10 rounded-2xl px-4 py-3 text-lg text-white font-black focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500/50 outline-none transition-all"
+                                    placeholder="0"
+                                />
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-gray-700 text-[10px] uppercase tracking-widest pointer-events-none">
+                                    {isBursa ? 'Lots' : 'Units'}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Strategy */}
-                    <div className="flex flex-col gap-2">
-                        <label className="text-[9px] text-gray-500 uppercase font-black tracking-tighter flex items-center gap-1.5 ml-1">
-                            <Target className="w-3 h-3 text-gray-600" /> Strategy
-                        </label>
-                        <select
-                            value={strategy}
-                            onChange={(e) => setStrategy(e.target.value)}
-                            className={`w-full bg-background/50 border rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 outline-none transition-all appearance-none cursor-pointer ${!existingPosition ? 'border-indigo-500/30 ring-1 ring-indigo-500/10' : 'border-white/10'}`}
-                        >
-                            <option value="momentum">🚀 Momentum {recommendedStrategy === 'momentum' && !existingPosition ? '⭐' : ''}</option>
-                            <option value="rebound">📈 Rebound {recommendedStrategy === 'rebound' && !existingPosition ? '⭐' : ''}</option>
-                        </select>
-                        {!existingPosition && recommendedStrategy && (
-                            <div className="text-[9px] text-indigo-400 font-bold uppercase tracking-widest mt-1 ml-1 animate-pulse">
-                                Recommended for this stock
-                            </div>
-                        )}
+                    <div className="flex items-center justify-between px-2 py-2 border-t border-white/5">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Strategy:</span>
+                            <span className="text-[10px] text-indigo-400 font-black uppercase tracking-widest">
+                                {strategy === 'momentum' ? 'Momentum 🚀' : 'Rebound 📈'}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 opacity-40">
+                            <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+                            <span className="text-[8px] font-black text-indigo-300 uppercase tracking-widest">System Recommended</span>
+                        </div>
                     </div>
 
-                    {/* Quantity */}
-                    <div className="flex flex-col gap-2 col-span-2 lg:col-span-1">
-                        <label className="text-[9px] text-gray-500 uppercase font-black tracking-tighter flex items-center gap-1.5 ml-1">
-                            <Hash className="w-3 h-3 text-gray-600" /> Quantity (Shares)
-                        </label>
-                        <input
-                            type="number"
-                            step="any"
-                            value={quantity}
-                            onChange={(e) => setQuantity(e.target.value)}
-                            className="w-full bg-background/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 outline-none transition-all placeholder:text-gray-700"
-                            placeholder="0.00"
-                        />
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3 pt-2">
-                    <button
-                        onClick={handleSave}
-                        className={`
+                    <div className="flex items-center gap-3 pt-2">
+                        <button
+                            onClick={handleSave}
+                            className={`
                             flex-1 flex items-center justify-center gap-3 font-black py-4 rounded-xl transition-all text-xs uppercase tracking-widest
                             ${existingPosition
-                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5 active:translate-y-0'
-                                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 hover:-translate-y-0.5 active:translate-y-0'}
+                                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 hover:-translate-y-0.5 active:translate-y-0'
+                                    : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 hover:-translate-y-0.5 active:translate-y-0'}
                         `}
-                    >
-                        <Save className="w-4 h-4" /> {existingPosition ? 'Update' : 'Record My Buy'}
-                    </button>
-                    {existingPosition && (
-                        <>
-                            <button
-                                onClick={() => {
-                                    setSellPrice(currentPrice);
-                                    setSellQty(existingPosition.quantity);
-                                    setShowSellModal(true);
-                                }}
-                                className="flex-1 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-black py-4 rounded-xl transition-all text-xs uppercase tracking-widest shadow-lg shadow-orange-500/20"
-                            >
-                                <TrendingUp className="w-4 h-4" /> SELL
-                            </button>
-                            <button
-                                onClick={() => onRemove(ticker)}
-                                className="p-4 bg-red-400/5 hover:bg-red-400/10 text-red-500 border border-red-500/10 rounded-xl transition-all group"
-                                title="Remove Position"
-                            >
-                                <Trash2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                            </button>
-                        </>
-                    )}
+                        >
+                            <Save className="w-4 h-4" /> {existingPosition ? 'Update' : 'Record My Buy'}
+                        </button>
+                        {existingPosition && (
+                            <>
+                                <button
+                                    onClick={() => {
+                                        setSellPrice(currentPrice);
+                                        setSellQty(existingPosition.quantity);
+                                        setShowSellModal(true);
+                                    }}
+                                    className="flex-1 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white font-black py-4 rounded-xl transition-all text-xs uppercase tracking-widest shadow-lg shadow-orange-500/20"
+                                >
+                                    <TrendingUp className="w-4 h-4" /> SELL
+                                </button>
+                                <button
+                                    onClick={() => onRemove(ticker)}
+                                    className="p-4 bg-red-400/5 hover:bg-red-400/10 text-red-500 border border-red-500/10 rounded-xl transition-all group"
+                                    title="Remove Position"
+                                >
+                                    <Trash2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -486,7 +611,7 @@ export function PositionManager({ ticker, currentPrice, market, existingPosition
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Sell Price (USD)</label>
+                                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Sell Price ({currency})</label>
                                     <input
                                         type="number"
                                         step="0.001"

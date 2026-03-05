@@ -25,7 +25,7 @@ const AdviceJournal = () => {
             color: 'emerald',
             content: [
                 'Falsafah: "Untung itu penting, tetapi menjaga modal (survival) adalah jauh lebih utama dalam jangka panjang."',
-                'Max Risk: Sentiasa tentukan berapa USD yang anda sanggup rugi sebelum masuk satu trade. Pasaran boleh jadi gila, tapi risiko anda mesti terkawal.'
+                'Max Risk: Sentiasa tentukan berapa modal (RM/USD) yang anda sanggup rugi sebelum masuk satu trade. Pasaran boleh jadi gila, tapi risiko anda mesti terkawal.'
             ]
         },
         {

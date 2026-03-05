@@ -18,22 +18,52 @@ export const handler = async (event, context) => {
 
 export const analyzeIntraday = async (ticker, entryPrice, isOwned) => {
     try {
-        // 1. Fetch Data for different timeframes
-        // usstock uses ticker as is (e.g. AAPL or 5148.KL)
+        // 1. Fetch DB Metadata to determine Yahoo Finance Symbol
+        // First try exact match on ticker_full
+        let { data: stockInfo } = await supabase
+            .from('klse_stocks')
+            .select('ticker_code, ticker_full, market, short_name')
+            .eq('ticker_full', ticker)
+            .maybeSingle();
+
+        // Fallback: if not found by ticker_full, try matching by short_name
+        // This handles cases like 'UZMA.KL' where DB stores it as '7250.KL'
+        if (!stockInfo && ticker.endsWith('.KL')) {
+            const shortCode = ticker.replace('.KL', '');
+            const { data: fallbackInfo } = await supabase
+                .from('klse_stocks')
+                .select('ticker_code, ticker_full, market, short_name')
+                .or(`short_name.eq.${shortCode},ticker_code.eq.${shortCode}`)
+                .eq('market', 'MYR')
+                .maybeSingle();
+
+            if (fallbackInfo) {
+                console.log(`[analyzeIntraday] Resolved ${ticker} -> ${fallbackInfo.ticker_full} via short_name fallback`);
+                stockInfo = fallbackInfo;
+            }
+        }
+
+        let yfSymbol = ticker;
+        if (stockInfo && (stockInfo.market === 'MYR' || stockInfo.market === 'KLSE') && stockInfo.ticker_code) {
+            yfSymbol = stockInfo.ticker_code.endsWith('.KL') ? stockInfo.ticker_code : `${stockInfo.ticker_code}.KL`;
+        }
+
+        // 2. Fetch Data for different timeframes
+        const historyTicker = stockInfo?.ticker_full || ticker;
         const [intraday, hourly, dailyHistory, weekly, livePrice] = await Promise.all([
-            fetchIntradayData(ticker, '15m', '1mo'),
-            fetchIntradayData(ticker, '60m', '1mo'),
-            supabase.from('klse_prices_daily').select('open, high, low, close, volume, price_date').eq('ticker_full', ticker).order('price_date', { ascending: true }).limit(250),
-            fetchIntradayData(ticker, '1wk', '1y'),
-            fetchStockData(ticker)
+            fetchIntradayData(yfSymbol, '15m', '1mo'),
+            fetchIntradayData(yfSymbol, '60m', '1mo'),
+            supabase.from('klse_prices_daily').select('open, high, low, close, volume, price_date').eq('ticker_full', historyTicker).order('price_date', { ascending: true }).limit(250),
+            fetchIntradayData(yfSymbol, '1wk', '1y'),
+            fetchStockData(yfSymbol)
         ]);
 
         let daily = dailyHistory.data || [];
 
         // If daily from DB is empty, use Yahoo daily as fallback (important for US stocks if not yet in DB)
         if (daily.length === 0) {
-            console.warn(`No daily history found in DB for ${ticker}, using 1d Yahoo fallback`);
-            const fallbackDaily = await fetchIntradayData(ticker, '1d', '1y');
+            console.warn(`No daily history found in DB for ${ticker}, using 1d Yahoo fallback for ${yfSymbol}`);
+            const fallbackDaily = await fetchIntradayData(yfSymbol, '1d', '1y');
             if (fallbackDaily) {
                 daily = fallbackDaily.map(p => ({
                     open: p.open,
@@ -46,7 +76,15 @@ export const analyzeIntraday = async (ticker, entryPrice, isOwned) => {
             }
         }
 
-        const cleanData = (arr) => (arr || []).filter(p => p && p.close !== null && !isNaN(p.close));
+        const cleanData = (arr) => (arr || []).filter(p => p && p.close !== null).map(p => ({
+            ...p,
+            open: Number(p.open || p.close),
+            high: Number(p.high || p.close || p.open),
+            low: Number(p.low || p.close || p.open),
+            close: Number(p.close),
+            volume: Number(p.volume || 0),
+            date: p.date || p.price_date
+        })).filter(p => !isNaN(p.close));
 
         const candles15m = cleanData(intraday);
         const candles1h = cleanData(hourly);
@@ -55,9 +93,9 @@ export const analyzeIntraday = async (ticker, entryPrice, isOwned) => {
         const latestDaily = candlesDaily.length > 0 ? candlesDaily[candlesDaily.length - 1] : null;
 
         // Determine current price with multiple fallbacks
-        let currentPrice = livePrice?.close ||
+        let currentPrice = Number(livePrice?.close ||
             (candles15m.length > 0 ? candles15m[candles15m.length - 1].close : 0) ||
-            latestDaily?.close || 0;
+            (latestDaily?.close || 0));
 
         // Helper: Calculate EMA
         const getEMA = (data, period) => {
@@ -212,20 +250,26 @@ export const analyzeIntraday = async (ticker, entryPrice, isOwned) => {
             type = "hold";
         }
 
-        // Macro Perspective (Re-run analyzeStock with live price)
+        // Macro Perspective (Re-run analyzeStock with latest info)
         let liveStockResult = null;
-        if (candlesDaily.length > 0 && livePrice) {
-            const history = candlesDaily.map(p => ({
-                open: p.open, high: p.high, low: p.low, close: p.close, volume: p.volume, date: p.price_date
-            }));
+        if (candlesDaily.length > 0) {
+            const history = [...candlesDaily];
+            const latestInfo = livePrice ? {
+                open: Number(livePrice.open || livePrice.close),
+                high: Number(livePrice.high || livePrice.close),
+                low: Number(livePrice.low || livePrice.close),
+                close: Number(livePrice.close),
+                volume: Number(livePrice.volume || 0),
+                date: livePrice.priceDate
+            } : null;
 
-            const lastDay = history[history.length - 1];
-            const lastDayDateString = new Date(lastDay.date).toISOString().split('T')[0];
-
-            if (lastDayDateString === livePrice.priceDate) {
-                history[history.length - 1] = { ...livePrice, date: livePrice.priceDate };
-            } else {
-                history.push({ ...livePrice, date: livePrice.priceDate });
+            if (latestInfo) {
+                const lastDay = history[history.length - 1];
+                if (lastDay.date === latestInfo.date) {
+                    history[history.length - 1] = { ...lastDay, ...latestInfo };
+                } else {
+                    history.push(latestInfo);
+                }
             }
 
             liveStockResult = analyzeStock({

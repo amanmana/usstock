@@ -16,7 +16,7 @@ export const handler = async (event, context) => {
         // 1. Fetch batch of stocks to process
         const { data: stocks, error: fetchError } = await supabase
             .from('klse_stocks')
-            .select('ticker_full, ticker_code')
+            .select('ticker_full, ticker_code, market')
             .eq('is_active', true)
             .range(offset, offset + limit - 1);
 
@@ -46,11 +46,12 @@ export const handler = async (event, context) => {
 
             const chunkPromises = chunk.map(async (stock) => {
                 try {
-                    // Use fetchStockData (REAL)
-                    // For now, I'll use mockStockData to ensure the app works without real selector configuration
-                    // In production, uncomment fetchStockData
+                    let yfSymbol = stock.ticker_full;
+                    if ((stock.market === 'MYR' || stock.market === 'KLSE') && stock.ticker_code) {
+                        yfSymbol = stock.ticker_code.endsWith('.KL') ? stock.ticker_code : `${stock.ticker_code}.KL`;
+                    }
 
-                    const data = await fetchStockData(stock.ticker_code);
+                    const data = await fetchStockData(yfSymbol);
                     // const data = await mockStockData(stock.ticker_code); // Disabled Mock
 
                     if (data) {

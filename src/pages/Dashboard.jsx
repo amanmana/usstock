@@ -41,6 +41,12 @@ function Dashboard() {
   const [systemStats, setSystemStats] = useState(null);
   const [activeTab, setActiveTab] = useState('rebound'); // 'rebound' or 'momentum'
   const [livePrices, setLivePrices] = useState({});
+  const [localResults, setLocalResults] = useState(null);
+
+  useEffect(() => {
+    // Reset local results when fresh screener data comes in from hook
+    if (results) setLocalResults(null);
+  }, [results]);
 
   useEffect(() => {
     // Fetch system status
@@ -100,6 +106,7 @@ function Dashboard() {
 
   // MAIN LIST RULE: Filter and Sort based on active tab
   const resultsArray = Array.isArray(results) ? results : [];
+
   const filteredResults = [...resultsArray]
     .filter(stock => {
       // 1. Universal checks
@@ -154,11 +161,17 @@ function Dashboard() {
 
   // Calculate Top Picks
   const topRebound = (resultsArray || [])
-    .filter(s => s && s.score >= 7 && (shariahOnly ? (s.shariah || s.signals?.includes('SHARIAH')) : true))
+    .filter(s => {
+      const scoreNum = parseFloat(s.score || 0);
+      return s && scoreNum >= 7 && (shariahOnly ? (s.shariah || s.isShariah || s.signals?.includes('SHARIAH')) : true);
+    })
     .sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0))[0];
 
   const topMomentum = (resultsArray || [])
-    .filter(s => s && s.momentumScore >= 8 && (shariahOnly ? (s.shariah || s.signals?.includes('SHARIAH')) : true))
+    .filter(s => {
+      const scoreNum = parseFloat(s.momentumScore || 0);
+      return s && scoreNum >= 8 && (shariahOnly ? (s.shariah || s.isShariah || s.signals?.includes('SHARIAH')) : true);
+    })
     .sort((a, b) => (parseFloat(b.momentumScore) || 0) - (parseFloat(a.momentumScore) || 0))[0];
 
   const handleSync = () => {
@@ -368,7 +381,7 @@ function Dashboard() {
                 <div className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1">Purata P/L</div>
                 <div className={`text-lg font-black flex items-center gap-2 ${avgPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {avgPL >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  {avgPL.toFixed(2)}%
+                  {Number(avgPL).toFixed(2)}%
                 </div>
               </div>
               <div>
@@ -396,7 +409,7 @@ function Dashboard() {
                 >
                   {pos.company}
                   <span className="block text-[8px] opacity-70">
-                    {pos.plPercent >= 0 ? '+' : ''}{pos.plPercent.toFixed(1)}%
+                    {pos.plPercent >= 0 ? '+' : ''}{Number(pos.plPercent).toFixed(1)}%
                   </span>
                 </button>
               ))}
@@ -459,6 +472,7 @@ function Dashboard() {
                 activeTab={activeTab}
                 favouriteTickers={favouriteTickers}
                 onToggleFavourite={toggleFavourite}
+                market="USD"
               />
             </div>
 
@@ -609,6 +623,24 @@ function Dashboard() {
           onSavePosition={addPosition}
           onRemovePosition={removePosition}
           onSellPosition={sellPosition}
+          onStockUpdate={(ticker, updatedStock) => {
+            setLocalResults(prev => {
+              const base = prev || (Array.isArray(results) ? results : []);
+              return base.map(s => {
+                if (s.ticker === ticker) {
+                  return {
+                    ...s,
+                    ...updatedStock,
+                    originalScore: s.originalScore || s.score,
+                    originalMomentumScore: s.originalMomentumScore || s.momentumScore,
+                    isLivePrice: true
+                  };
+                }
+                return s;
+              });
+            });
+            setSelectedStock(prev => prev?.ticker === ticker ? { ...prev, ...updatedStock, isLivePrice: true } : prev);
+          }}
         />
       )}
     </div>
@@ -699,12 +731,23 @@ const SystemBar = ({ onRecompute, stats }) => {
                 }
               })()}
             </div>
-            <div className="flex items-center gap-3 mt-2">
-              <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-green-500/10 text-green-400 text-[10px] font-bold border border-green-500/20 uppercase tracking-wide">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
-                Selesai
+            <div className="flex items-center gap-3 mt-2 flex-wrap">
+              <span className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold border uppercase tracking-wide
+                  ${lastSync.status === 'done' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                  lastSync.status === 'error' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                    'bg-blue-500/10 text-blue-400 border-blue-500/20'}
+              `}>
+                <div className={`w-1.5 h-1.5 rounded-full animate-pulse
+                    ${lastSync.status === 'done' ? 'bg-green-400' :
+                    lastSync.status === 'error' ? 'bg-red-400' :
+                      'bg-blue-400'}
+                `}></div>
+                {lastSync.status === 'done' ? 'SELESAI' :
+                  lastSync.status === 'error' ? 'RALAT' : 'SEDANG BERJALAN'}
               </span>
-              <span className="text-xs text-gray-400 font-medium">{lastSync.count} Saham Diproses</span>
+              <span className="text-[11px] text-gray-400 font-bold tracking-tight">
+                {lastSync.status === 'running' ? `${lastSync.count} / ${lastSync.total || '?'}` : lastSync.count} Saham Diproses
+              </span>
             </div>
           </div>
         ) : (

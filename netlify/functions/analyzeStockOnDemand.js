@@ -34,17 +34,30 @@ export const handler = async (event, context) => {
         }
 
         // 2. Fetch Metadata (Company Name & Shariah Status)
-        const { data: stockInfo } = await supabase
+        // Try by ticker_full first; then fall back to short_name for non-standard tickers
+        let { data: stockInfo } = await supabase
             .from('klse_stocks')
-            .select('company_name, shariah_status')
+            .select('company_name, shariah_status, market, ticker_full')
             .eq('ticker_full', ticker)
-            .single();
+            .maybeSingle();
+
+        if (!stockInfo && ticker.endsWith('.KL')) {
+            const shortCode = ticker.replace('.KL', '');
+            const { data: fallback } = await supabase
+                .from('klse_stocks')
+                .select('company_name, shariah_status, market, ticker_full')
+                .or(`short_name.eq.${shortCode},ticker_code.eq.${shortCode}`)
+                .eq('market', 'MYR')
+                .maybeSingle();
+            if (fallback) stockInfo = fallback;
+        }
 
         // 3. Build Standardized Trade Plan
         const tradePlan = buildTradePlan({
             ticker,
             companyName: stockInfo?.company_name,
             shariahStatus: stockInfo?.shariah_status,
+            market: stockInfo?.market,
             analysis
         });
 

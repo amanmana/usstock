@@ -11,6 +11,7 @@ const StockManagerPage = () => {
     // --- Active Stocks State ---
     const [stocks, setStocks] = useState([]);
     const [loadingStocks, setLoadingStocks] = useState(true);
+    const [activeTab, setActiveTab] = useState('US');
     const [selected, setSelected] = useState(new Set());
     const [isDeactivating, setIsDeactivating] = useState(false);
     const [deactivateStatus, setDeactivateStatus] = useState('');
@@ -53,11 +54,22 @@ const StockManagerPage = () => {
     };
 
     const toggleSelectAll = () => {
-        if (selected.size === stocks.length) {
-            setSelected(new Set());
-        } else {
-            setSelected(new Set(stocks.map(s => s.ticker_full)));
-        }
+        const currentTabStocks = activeTab === 'US'
+            ? stocks.filter(s => !s.ticker_full.endsWith('.KL'))
+            : stocks.filter(s => s.ticker_full.endsWith('.KL'));
+
+        const currentTabTickers = currentTabStocks.map(s => s.ticker_full);
+        const allSelectedInTab = currentTabTickers.every(ticker => selected.has(ticker));
+
+        setSelected(prev => {
+            const next = new Set(prev);
+            if (allSelectedInTab) {
+                currentTabTickers.forEach(t => next.delete(t));
+            } else {
+                currentTabTickers.forEach(t => next.add(t));
+            }
+            return next;
+        });
     };
 
     // --- Deactivate Selected ---
@@ -159,8 +171,12 @@ const StockManagerPage = () => {
         }
     };
 
-    const sharíahCount = stocks.filter(s => s.shariah_status === 'SHARIAH').length;
-    const nonShariahCount = stocks.filter(s => s.shariah_status !== 'SHARIAH').length;
+    const usStocks = stocks.filter(s => !s.ticker_full.endsWith('.KL'));
+    const bursaStocks = stocks.filter(s => s.ticker_full.endsWith('.KL'));
+    const displayStocks = activeTab === 'US' ? usStocks : bursaStocks;
+
+    const shariahCount = displayStocks.filter(s => s.shariah_status === 'SHARIAH').length;
+    const nonShariahCount = displayStocks.filter(s => s.shariah_status !== 'SHARIAH').length;
 
     return (
         <div className="min-h-screen bg-background text-text-primary font-sans p-6 md:p-10 pb-28">
@@ -191,17 +207,45 @@ const StockManagerPage = () => {
                 {/* Summary Stats */}
                 <div className="grid grid-cols-3 gap-4">
                     <div className="bg-white/5 border border-white/[0.02] rounded-2xl p-4 text-center">
-                        <div className="text-3xl font-black text-white">{stocks.length}</div>
-                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">Total Aktif</div>
+                        <div className="text-3xl font-black text-white">{displayStocks.length}</div>
+                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">Total Aktif ({activeTab})</div>
                     </div>
                     <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4 text-center">
-                        <div className="text-3xl font-black text-emerald-400">{sharíahCount}</div>
+                        <div className="text-3xl font-black text-emerald-400">{shariahCount}</div>
                         <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1">✅ Syariah</div>
                     </div>
                     <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-4 text-center">
                         <div className="text-3xl font-black text-red-400">{nonShariahCount}</div>
-                        <div className="text-[10px] font-black text-red-600 uppercase tracking-widest mt-1">❌ Non-Syariah / Unknown</div>
+                        <div className="text-[10px] font-black text-red-600 uppercase tracking-widest mt-1">❌ Non-Syariah</div>
                     </div>
+                </div>
+
+                {/* Main Tabs */}
+                <div className="flex items-center gap-2 bg-surfaceHighlight/20 p-1.5 rounded-2xl w-fit border border-white/5">
+                    <button
+                        onClick={() => setActiveTab('US')}
+                        className={`flex items-center gap-3 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all duration-300 ${activeTab === 'US'
+                                ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]'
+                                : 'text-gray-500 hover:text-white hover:bg-white/5'
+                            }`}
+                    >
+                        🇺🇸 US Market
+                        <span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'US' ? 'bg-black/10 text-black' : 'bg-white/5 text-gray-500'}`}>
+                            {usStocks.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('Bursa')}
+                        className={`flex items-center gap-3 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all duration-300 ${activeTab === 'Bursa'
+                                ? 'bg-primary text-white shadow-[0_0_20px_rgba(var(--primary-rgb, 59, 130, 246),0.3)]'
+                                : 'text-gray-500 hover:text-white hover:bg-white/5'
+                            }`}
+                    >
+                        🇲🇾 Bursa Malaysia
+                        <span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'Bursa' ? 'bg-black/20 text-white' : 'bg-white/5 text-gray-500'}`}>
+                            {bursaStocks.length}
+                        </span>
+                    </button>
                 </div>
 
                 {/* Section 1: Active Counters */}
@@ -248,7 +292,7 @@ const StockManagerPage = () => {
                                 <tr className="border-b border-white/[0.02]">
                                     <th className="px-6 py-3 text-left">
                                         <button onClick={toggleSelectAll} className="text-gray-500 hover:text-white transition-colors">
-                                            {selected.size === stocks.length && stocks.length > 0
+                                            {displayStocks.length > 0 && displayStocks.every(s => selected.has(s.ticker_full))
                                                 ? <CheckSquare className="w-4 h-4 text-indigo-400" />
                                                 : <Square className="w-4 h-4" />}
                                         </button>
@@ -265,9 +309,9 @@ const StockManagerPage = () => {
                                         <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-indigo-400" />
                                         Memuatkan senarai counter...
                                     </td></tr>
-                                ) : stocks.length === 0 ? (
-                                    <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">Tiada counter aktif.</td></tr>
-                                ) : stocks.map(stock => (
+                                ) : displayStocks.length === 0 ? (
+                                    <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">Tiada counter aktif dalam pasaran {activeTab}.</td></tr>
+                                ) : displayStocks.map(stock => (
                                     <tr
                                         key={stock.ticker_full}
                                         className={`border-b border-white/[0.02] hover:bg-white/3 transition-colors cursor-pointer ${selected.has(stock.ticker_full) ? 'bg-red-500/5' : ''}`}

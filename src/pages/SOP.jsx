@@ -72,7 +72,7 @@ const SOP = () => {
                                 <StepNumber
                                     number="3"
                                     title="Kira Risk Management"
-                                    desc="Gunakan kalkulator di modal. Masukkan 'Max Risk (USD)' anda untuk mendapatkan kuantiti yang tepat."
+                                    desc="Gunakan kalkulator di modal. Masukkan 'Max Risk (RM/USD)' anda untuk mendapatkan kuantiti yang tepat."
                                 />
                                 <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl mt-6 flex items-start gap-3">
                                     <Info className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
@@ -113,8 +113,8 @@ const SOP = () => {
                                 />
                                 <StepNumber
                                     number="2"
-                                    title="Pantau Untung/Rugi USD"
-                                    desc="Kolum 'Untung/Rugi' menunjukkan nilai tepat dalam USD. Ini membantu anda membuat keputusan berdasarkan angka sebenar, bukan sekadar peratusan."
+                                    title="Pantau Untung/Rugi"
+                                    desc="Kolum 'Untung/Rugi' menunjukkan nilai tepat dalam RM/USD. Ini membantu anda membuat keputusan berdasarkan angka sebenar, bukan sekadar peratusan."
                                 />
                                 <StepNumber
                                     number="3"

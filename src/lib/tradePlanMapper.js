@@ -48,11 +48,39 @@ export function mapAnalysisToTradePlan(apiResponse) {
         { label: "Stoch Timing (K > D, Not OB)", passed: !!(stats.stoch?.k > stats.stoch?.d && stats.stoch?.k <= 80) }
     ];
 
+    const holdingChecklist = [
+        {
+            label: "Target TP1 Hit?",
+            value: (apiResponse.currentPrice || liveStock.close) >= (levels.target1 || 0) ? "REACHED" : "PENDING",
+            passed: (apiResponse.currentPrice || liveStock.close) >= (levels.target1 || 0),
+            note: (apiResponse.currentPrice || liveStock.close) >= (levels.target1 || 0) ? "Mula rancang Take Profit." : "Belum capai target pertama."
+        },
+        {
+            label: "Normal Momentum?",
+            value: (stats.rsi14 >= 40 && stats.rsi14 <= 75) ? "HEALTHY" : (stats.rsi14 > 75 ? "O-BOUGHT" : "WEAK"),
+            passed: stats.rsi14 >= 40 && stats.rsi14 <= 75,
+            note: stats.rsi14 > 75 ? "Hati-hati, momentum melampau." : (stats.rsi14 < 40 ? "Momentum mula surut." : "Harga stabil untuk kenaikan.")
+        },
+        {
+            label: "Volume Normal?",
+            value: stats.isVolumeDistribution ? "SELL OFF" : "LOW VOL",
+            passed: !stats.isVolumeDistribution,
+            note: stats.isVolumeDistribution ? "Ada unsur jualan besar (Distribusi)." : "Tiada tekanan jualan agresif."
+        },
+        {
+            label: "Breakeven Secured?",
+            value: (apiResponse.currentPrice || liveStock.close) >= (levels.rr2_price || apiResponse.currentPrice || liveStock.close) ? "SAFE" : "AT RISK",
+            passed: (apiResponse.currentPrice || liveStock.close) >= (levels.rr2_price || apiResponse.currentPrice || liveStock.close),
+            note: "Checking against entry/queue price."
+        }
+    ];
+
     return {
         ticker: apiResponse.ticker || liveStock.ticker,
         company_name: liveStock.fullName || liveStock.company || "Unknown",
         shariah_status: liveStock.isShariah ? 'SHARIAH' : 'NON_SHARIAH',
         snapshotScore10: score,
+        momentumScore10: momentumScore,
         verdictLabel,
         convictionPct,
         price: apiResponse.currentPrice || liveStock.close || 0,
@@ -86,6 +114,7 @@ export function mapAnalysisToTradePlan(apiResponse) {
             queuePrice: levels.rr2_price
         },
         checklist,
+        holdingChecklist,
         raw: apiResponse // Keep raw for compatibility if needed
     };
 }

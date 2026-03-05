@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Eye, Heart, ExternalLink, Bell, Activity } from 'lucide-react';
 import { format } from 'date-fns';
 
-export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTickers = [], favouriteDetails = {}, activeTab = 'rebound', positions = {} }) {
+export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTickers = [], favouriteDetails = {}, activeTab = 'rebound', positions = {}, market = 'USD' }) {
     if (!data || data.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center p-12 text-center border border-border dashed rounded-xl bg-surface/50">
@@ -17,6 +17,9 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
         );
     }
 
+    // Determine currency symbol based on market
+    const currency = (market === 'MYR' || market === 'KLSE' || data[0]?.market === 'MYR' || data[0]?.market === 'KLSE') ? 'RM' : 'USD';
+
     return (
         <div className="overflow-x-auto rounded-xl border border-border shadow-2xl bg-surface">
             <table className="w-full text-left text-sm whitespace-nowrap">
@@ -26,7 +29,7 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
                         <th className="p-4">Ticker / Company</th>
                         <th className="p-4 text-center">Score</th>
                         <th className="p-4 text-center">Strategy / Action</th>
-                        <th className="p-4 text-right">Close (USD)</th>
+                        <th className="p-4 text-right">Close ({currency})</th>
                         <th className="p-4 text-center">DD% / RSI</th>
                         <th className="p-4">Signals</th>
                         <th className="p-4 pr-6 text-right">Action</th>
@@ -111,16 +114,34 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
                                     <div className="flex flex-col items-center gap-1">
                                         <div className={`
                                             inline-flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm
-                                            ${scoreNum >= 8.5 ? (isMomentum ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'bg-accent/10 text-accent border border-accent/20') :
-                                                scoreNum >= 7.0 ? 'bg-primary/10 text-primary border border-primary/20' :
-                                                    'bg-gray-700/50 text-gray-400'}
+                                            ${(() => {
+                                                const val = parseFloat(isMomentum ? (stock.originalMomentumScore || stock.momentumScore) : (stock.originalScore || stock.score));
+                                                if (isNaN(val)) return 'bg-gray-700/50 text-gray-400';
+                                                if (val >= 8.5) return isMomentum ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'bg-accent/10 text-accent border border-accent/20';
+                                                if (val >= 7.0) return 'bg-primary/10 text-primary border border-primary/20';
+                                                return 'bg-gray-700/50 text-gray-400';
+                                            })()}
                                         `}>
-                                            {scoreNum.toFixed(1)}
+                                            {(() => {
+                                                const val = parseFloat(isMomentum ? (stock.originalMomentumScore || stock.momentumScore) : (stock.originalScore || stock.score));
+                                                return isNaN(val) ? '-' : val.toFixed(1);
+                                            })()}
                                         </div>
                                         {isHybrid && (
                                             <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-tighter ${isMomentum ? 'bg-orange-500/10 text-orange-500 border-orange-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'}`}>
                                                 {isMomentum ? 'Momentum' : 'Rebound'}
                                             </span>
+                                        )}
+                                        {stock.isLivePrice && (
+                                            <div className="flex flex-col items-center -mt-0.5">
+                                                <div className="text-[11px] font-black text-white bg-primary px-2 py-0.5 rounded shadow-lg shadow-primary/20 animate-pulse border border-white/20">
+                                                    {(() => {
+                                                        const val = parseFloat(scoreNum);
+                                                        return isNaN(val) ? '0.0' : val.toFixed(1);
+                                                    })()}
+                                                </div>
+                                                <span className="text-[7px] font-black text-primary uppercase tracking-[0.2em] mt-0.5">LIVE SCORE</span>
+                                            </div>
                                         )}
                                     </div>
                                 </td>
@@ -135,7 +156,7 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
                                 <td className="p-4 text-right">
                                     <div className="flex flex-col items-end">
                                         <div className={`font-mono text-base font-bold transition-all duration-500 ${stock.isLivePrice ? 'text-primary' : 'text-gray-200'}`}>
-                                            USD {stock.close ? stock.close.toFixed(3) : '-'}
+                                            {currency} {stock.close ? (Number(stock.close)).toFixed(3) : '-'}
                                         </div>
                                         <div className="mt-0.5">
                                             {stock.isLivePrice ? (
@@ -167,7 +188,7 @@ export function ScreenerTable({ data, onView, onToggleFavourite, favouriteTicker
                                         <div className={`text-xs font-mono font-medium ${stock.stats?.rsi14 >= 70 ? 'text-red-400' :
                                             stock.stats?.rsi14 <= 30 ? 'text-green-400' : 'text-blue-400'
                                             }`}>
-                                            RSI: {stock.stats?.rsi14?.toFixed(0) || '-'}
+                                            RSI: {stock.stats?.rsi14 ? (Number(stock.stats.rsi14)).toFixed(0) : '-'}
                                         </div>
                                     </div>
                                 </td>

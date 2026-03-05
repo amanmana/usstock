@@ -161,8 +161,8 @@ export function computeATR(prices, period = 14) {
 
 export function analyzeStock(stockData) {
     const { code, company, prices } = stockData;
-    const closes = prices.map(p => p.close);
-    const volumes = prices.map(p => p.volume);
+    const closes = (prices || []).map(p => Number(p.close));
+    const volumes = (prices || []).map(p => Number(p.volume));
 
     const len = closes.length;
     if (len === 0) return null;

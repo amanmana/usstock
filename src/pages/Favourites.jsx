@@ -26,6 +26,7 @@ const FavouritesPage = () => {
 
     const [showAddModal, setShowAddModal] = useState(false);
     const [newSymbol, setNewSymbol] = useState('');
+    const [activeTab, setActiveTab] = useState('US');
     const [selectedStock, setSelectedStock] = useState(null);
     const [isAdding, setIsAdding] = useState(false);
     const [addStatus, setAddStatus] = useState(''); // 'validating', 'importing', 'computing', 'success', 'error'
@@ -98,18 +99,26 @@ const FavouritesPage = () => {
             };
         }
 
+        const details = favouriteDetails[ticker] || {};
+
         // Pending state placeholder
         return {
             ticker: ticker,
-            company: 'Loading Data...',
-            score: '...',
+            company: details.company_name || 'Loading Data...',
+            score: null,
+            momentumScore: null,
             close: latestInfo?.close || 0,
             isLivePrice: !!latestInfo,
-            stats: { rsi14: 0, dropdownPercent: 0 },
+            stats: { rsi14: null, dropdownPercent: null },
             signals: ['PENDING'],
             isPending: true
         };
     });
+
+    // Categorize and filter results
+    const usStocks = favResults.filter(s => !s.ticker.endsWith('.KL'));
+    const bursaStocks = favResults.filter(s => s.ticker.endsWith('.KL'));
+    const displayResults = activeTab === 'US' ? usStocks : bursaStocks;
 
     // Debounced search for the modal
     React.useEffect(() => {
@@ -247,21 +256,66 @@ const FavouritesPage = () => {
                     )}
                 </div>
 
+                {/* Custom Tabs */}
+                <div className="flex items-center gap-2 mb-8 bg-surfaceHighlight/20 p-1.5 rounded-2xl w-fit border border-white/5">
+                    <button
+                        onClick={() => setActiveTab('US')}
+                        className={`flex items-center gap-3 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all duration-300 ${activeTab === 'US'
+                            ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]'
+                            : 'text-gray-500 hover:text-white hover:bg-white/5'
+                            }`}
+                    >
+                        🇺🇸 US Market
+                        <span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'US' ? 'bg-black/10 text-black' : 'bg-white/5 text-gray-500'}`}>
+                            {usStocks.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('Bursa')}
+                        className={`flex items-center gap-3 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all duration-300 ${activeTab === 'Bursa'
+                            ? 'bg-primary text-white shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)]'
+                            : 'text-gray-500 hover:text-white hover:bg-white/5'
+                            }`}
+                    >
+                        🇲🇾 Bursa Malaysia
+                        <span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'Bursa' ? 'bg-black/20 text-white' : 'bg-white/5 text-gray-500'}`}>
+                            {bursaStocks.length}
+                        </span>
+                    </button>
+                </div>
+
                 {/* Content */}
                 {(loading || loadingFavs) ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
                         <Loader2 className="w-12 h-12 text-primary animate-spin" />
                         <p className="text-gray-500 font-medium">Loading your favourites...</p>
                     </div>
+                ) : displayResults.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-surfaceHighlight/5 rounded-3xl border border-dashed border-white/10">
+                        <div className="p-6 bg-white/5 rounded-full mb-4">
+                            <Heart className="w-10 h-10 text-gray-700" />
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">Tiada Saham {activeTab}</h3>
+                        <p className="text-gray-500 max-w-sm text-center">
+                            Anda belum menambah sebarang kaunter kegemaran untuk pasaran {activeTab === 'US' ? 'Amerika Syarikat' : 'Bursa Malaysia'}.
+                        </p>
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="mt-8 px-8 py-3 bg-white/5 hover:bg-white/10 text-white text-xs font-black uppercase tracking-widest rounded-full transition-all border border-white/10"
+                        >
+                            Tambah Sekarang
+                        </button>
+                    </div>
                 ) : (
                     <ScreenerTable
-                        data={favResults}
+                        data={displayResults}
                         onView={setSelectedStock}
                         onToggleFavourite={toggleFavourite}
                         favouriteTickers={favouriteTickers}
                         favouriteDetails={favouriteDetails}
                         positions={positions}
-                        activeTab="hybrid"
+                        activeTab={activeTab === 'US' ? 'hybrid' : 'bursa'}
+                        market={activeTab === 'US' ? 'USD' : 'MYR'}
                     />
                 )}
 

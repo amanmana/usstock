@@ -73,36 +73,174 @@ const GaugeMeter = ({ value, label, color, isPortfolio, loading, variant }) => {
     );
 };
 
-export function StockModal(props) {
-    const {
-        isOpen,
-        onClose,
-        stock,
-        onTradeRefresh,
-        strategy = 'rebound',
-        favouriteTickers = [],
-        favouriteDetails = {},
-        onToggleFavourite,
-        onToggleAlert,
-        positions = {},
-        onSavePosition,
-        onRemovePosition,
-        onSellPosition,
-        onStockUpdate
-    } = props;
+const formatValue = (val, decimals = 3) => {
+    if (val === null || val === undefined) return "—";
+    const num = parseFloat(val);
+    if (isNaN(num)) return "—";
+    return num.toFixed(decimals);
+};
 
-    const formatV = (val, decimals = 3) => {
-        if (val === null || val === undefined) return "—";
-        const num = parseFloat(val);
-        if (isNaN(num)) return "—";
-        return num.toFixed(decimals);
+const normalizeTradingViewSymbol = (ticker = '', market = '', stock = {}) => {
+    const symbolOnly = (ticker || '').split('.')[0].toUpperCase();
+
+    // 1. Force Bursa if ticker contains .KL or market/stock indicates MYR
+    if (ticker.toUpperCase().endsWith('.KL') || market?.toUpperCase() === 'KLSE' || stock?.market === 'MYR') {
+        return `MYX:${symbolOnly}`;
+    }
+
+    const exchangeMap = {
+        'MYX': 'MYX',
+        'MYR': 'MYX',
+        'KLSE': 'MYX',
+        'NASDAQ': 'NASDAQ',
+        'NYSE': 'NYSE',
+        'AMEX': 'AMEX'
     };
+
+    let internalEx = stock?.exchange || market;
+    const tvExchange = exchangeMap[internalEx?.toUpperCase()];
+
+    if (tvExchange) {
+        return `${tvExchange}:${symbolOnly}`;
+    }
+
+    return symbolOnly;
+};
+
+const TradingViewWidget = ({ ticker, market, stock }) => {
+    const containerRef = React.useRef(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+
+    const tvSymbol = normalizeTradingViewSymbol(ticker, market, stock);
+    const isBursa = tvSymbol.startsWith('MYX:');
+    const containerId = `tv-chart-${ticker.replace(/\./g, '-')}-${Math.floor(Math.random() * 1000)}`;
+
+    useEffect(() => {
+        if (isBursa) {
+            setLoading(false);
+            return;
+        }
+
+        let isMounted = true;
+        const createWidget = () => {
+            if (!isMounted) return;
+            if (window.TradingView && containerRef.current) {
+                containerRef.current.innerHTML = '';
+                const widgetDiv = document.createElement('div');
+                widgetDiv.id = containerId;
+                widgetDiv.style.width = '100%';
+                widgetDiv.style.height = '100%';
+                containerRef.current.appendChild(widgetDiv);
+
+                try {
+                    new window.TradingView.widget({
+                        "autosize": true,
+                        "symbol": tvSymbol,
+                        "interval": "D",
+                        "timezone": "Etc/UTC",
+                        "theme": "dark",
+                        "style": "1",
+                        "locale": "ms_MY",
+                        "toolbar_bg": "#0a0a0c",
+                        "enable_publishing": false,
+                        "hide_side_toolbar": false,
+                        "allow_symbol_change": true,
+                        "container_id": containerId,
+                        "width": "100%",
+                        "height": "100%"
+                    });
+                    setLoading(false);
+                } catch (e) {
+                    console.error("TradingView widget init failed:", e);
+                    setError(true);
+                }
+            }
+        };
+
+        if (!window.TradingView) {
+            const script = document.createElement('script');
+            script.src = 'https://s3.tradingview.com/tv.js';
+            script.async = true;
+            script.onload = () => { if (isMounted) createWidget(); };
+            script.onerror = () => { if (isMounted) setError(true); };
+            document.head.appendChild(script);
+        } else {
+            const timer = setTimeout(() => { if (isMounted) createWidget(); }, 250);
+            return () => clearTimeout(timer);
+        }
+        return () => { isMounted = false; };
+    }, [ticker, market, stock, containerId, isBursa, tvSymbol]);
+
+    if (isBursa) {
+        return (
+            <div className="w-full h-full flex flex-col">
+                <div className="bg-orange-500/5 border-b border-orange-500/10 px-4 py-1.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Info className="w-3 h-3 text-orange-400" />
+                        <span className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Bursa Interactive (Limited View)</span>
+                    </div>
+                    <span className="text-[8px] text-gray-500 font-bold italic">Sila guna 'New Tab' untuk analisa luas</span>
+                </div>
+                <div className="flex-1 bg-black">
+                    <iframe
+                        key={tvSymbol}
+                        src={`https://www.tradingview.com/widgetembed/?symbol=${tvSymbol}&interval=D&theme=dark&locale=ms_MY&hidesidetoolbar=0&symboledit=0&saveimage=0&toolbarbg=0a0a0c`}
+                        style={{ width: '100%', height: '100%', border: 'none' }}
+                        title="Bursa Malaysia Chart"
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="w-full h-full relative">
+            {loading && !error && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-surfaceHighlight/10 gap-3 z-10">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Loading Interactive Chart...</span>
+                </div>
+            )}
+            {error && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-500/5 text-center p-8 z-10">
+                    <AlertOctagon className="w-8 h-8 text-red-500 mb-4" />
+                    <span className="text-red-400 font-black uppercase text-xs mb-2">Gagal Memaparkan Carta</span>
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">Sila gunakan pautan "New Tab" di bawah.</span>
+                </div>
+            )}
+            <div id={containerId} ref={containerRef} className="w-full h-full" />
+        </div>
+    );
+};
+
+export function StockModal({
+    isOpen,
+    onClose,
+    stock,
+    onTradeRefresh,
+    strategy = 'momentum',
+    market = 'US',
+    favouriteTickers = [],
+    favouriteDetails = {},
+    onToggleFavourite,
+    onToggleAlert,
+    positions = {},
+    onSavePosition,
+    onRemovePosition,
+    onSellPosition,
+    onStockUpdate
+}) {
+    const currency = (market === 'MYR' || market === 'KLSE' || stock?.market === 'MYR' || stock?.market === 'KLSE') ? 'RM' : 'USD';
+    const currencySymbol = currency === 'RM' ? 'RM ' : '$';
+    const isBursa = currency === 'RM' || stock?.ticker?.endsWith('.KL');
 
     const [historyData, setHistoryData] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [tradePlan, setTradePlan] = useState(null);
     const [loadingTradePlan, setLoadingTradePlan] = useState(false);
     const [isShariahUpdating, setIsShariahUpdating] = useState(false);
+    const [showChart, setShowChart] = useState(false);
 
     const fetchTradePlan = (ticker) => {
         if (!ticker) {
@@ -111,7 +249,8 @@ export function StockModal(props) {
         }
         console.log(`Fetching comprehensive trade plan for ${ticker}...`);
         setLoadingTradePlan(true);
-        fetch(`/.netlify/functions/analyzeStockOnDemand?ticker=${ticker}`)
+        const timestamp = new Date().getTime();
+        fetch(`/.netlify/functions/analyzeStockOnDemand?ticker=${ticker}&cb=${timestamp}`)
             .then(res => res.json())
             .then(data => {
                 console.log("Trade plan fetch success:", data);
@@ -127,7 +266,13 @@ export function StockModal(props) {
                             ...stock,
                             close: plan.price,
                             isLivePrice: true,
-                            liveScore: plan.snapshotScore10,
+                            score: plan.raw?.liveStock?.score ?? plan.snapshotScore10 ?? stock.score,
+                            momentumScore: plan.raw?.liveStock?.momentumScore ?? plan.snapshotScore10 ?? stock.momentumScore,
+                            liveScore: strategy === 'momentum'
+                                ? (plan.momentumScore10 || plan.snapshotScore10)
+                                : strategy === 'hybrid'
+                                    ? Math.max(plan.snapshotScore10 || 0, plan.momentumScore10 || 0)
+                                    : plan.snapshotScore10,
                             alignment: plan.multiTimeframe
                         };
                         onStockUpdate(ticker, updatedStock);
@@ -179,6 +324,12 @@ export function StockModal(props) {
         }
     }, [stock?.ticker]);
 
+
+    useEffect(() => {
+        if (isBursa) {
+            setShowChart(false);
+        }
+    }, [isBursa]);
 
     if (!stock) return null;
 
@@ -319,7 +470,7 @@ export function StockModal(props) {
         } else if (plPercent >= 10 && plPercent < 20) {
             advice = {
                 type: 'tp',
-                text: `SASARAN TP1 TERCAPAI (+${plPercent.toFixed(1)}%). Cadangan: JUAL 50% untuk kunci untung dan biarkan baki 'run' dengan Trailing Stop.`,
+                text: `SASARAN TP1 TERCAPAI (+${Number(plPercent).toFixed(1)}%). Cadangan: JUAL 50% untuk kunci untung dan biarkan baki 'run' dengan Trailing Stop.`,
                 color: "text-emerald-400 font-bold"
             };
         }
@@ -327,31 +478,31 @@ export function StockModal(props) {
         else if (plan.price < ma10 && ma10 > 0) {
             advice = {
                 type: 'sell',
-                text: `Trend Pendek Melemah: Harga tutup bawah MA10 (USD ${ma10.toFixed(3)}). Cadangan: KELUAR sepenuhnya atau sebahagian untuk selamatkan untung.`,
+                text: `Trend Pendek Melemah: Harga tutup bawah MA10 (${currency} ${ma10.toFixed(3)}). Cadangan: KELUAR sepenuhnya atau sebahagian untuk selamatkan untung.`,
                 color: "text-yellow-500"
             };
         } else if (plPercent >= 5) {
             advice = {
                 type: 'hold',
-                text: `MODAL DILINDUNGI: Untung sudah >5%. Gerakkan Stop Loss ke Harga Belian (USD ${pos.entryPrice.toFixed(3)}) untuk 'Risk Free Trade'.`,
+                text: `MODAL DILINDUNGI: Untung sudah >5%. Gerakkan Stop Loss ke Harga Belian (${currency} ${pos.entryPrice.toFixed(3)}) untuk 'Risk Free Trade'.`,
                 color: "text-indigo-400"
             };
         } else if (plan.price <= stopLoss) {
             advice = {
                 type: 'sell',
-                text: `STOP LOSS HIT: Harga (USD ${plan.price.toFixed(3)}) bocor paras sokongan (USD ${stopLoss.toFixed(3)}). KELUAR SEGERA.`,
+                text: `STOP LOSS HIT: Harga (${currency} ${plan.price.toFixed(3)}) bocor paras sokongan (${currency} ${stopLoss.toFixed(3)}). KELUAR SEGERA.`,
                 color: "text-red-400"
             };
         }
         // Default Hold
         else {
             const lowIntraday = plan.multiTimeframe.confirmedCount === 0;
-            const strategyText = plan.trade.strategyLabel === 'Momentum' ? `Kekal atas MA20 (USD ${ma20.toFixed(3)})` : `Masih dalam zon sihat`;
+            const strategyText = plan.trade.strategyLabel === 'Momentum' ? `Kekal atas MA20 (${currency} ${ma20.toFixed(3)})` : `Masih dalam zon sihat`;
             advice = {
                 type: 'hold',
                 text: lowIntraday
-                    ? `HOLD (AMARAN): Sentiment intraday lemah (0/3). Masih ${strategyText}. Pantau rapi paras USD ${stopLoss.toFixed(3)}.`
-                    : `HOLD: ${strategyText}. Sasaran TP1 seterusnya adalah USD ${target1.toFixed(3)}. Teruskan 'ride' selagi trend belum patah.`,
+                    ? `HOLD (AMARAN): Sentiment intraday lemah (0/3). Masih ${strategyText}. Pantau rapi paras ${currency} ${stopLoss.toFixed(3)}.`
+                    : `HOLD: ${strategyText}. Sasaran TP1 seterusnya adalah ${currency} ${target1.toFixed(3)}. Teruskan 'ride' selagi trend belum patah.`,
                 color: lowIntraday ? "text-orange-400" : "text-blue-400"
             };
         }
@@ -402,20 +553,26 @@ export function StockModal(props) {
                         </div>
                         <div className="flex items-center gap-2 mt-2">
                             <span className={`text-3xl font-black ${pos ? (plPercent >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-primary'}`}>
-                                {pos ? `${plPercent >= 0 ? '+' : ''}${plPercent.toFixed(1)}%` : `SNAPSHOT: ${plan.snapshotScore10.toFixed(1)}`}
+                                {pos ? `${plPercent >= 0 ? '+' : ''}${Number(plPercent).toFixed(1)}%` : `SNAPSHOT: ${Number(
+                                    strategy === 'momentum'
+                                        ? (plan.momentumScore10 || plan.snapshotScore10)
+                                        : strategy === 'hybrid'
+                                            ? Math.max(plan.snapshotScore10 || 0, plan.momentumScore10 || 0)
+                                            : plan.snapshotScore10
+                                ).toFixed(1)}`}
                             </span>
                             {!pos && <span className="text-sm text-gray-500 font-bold uppercase tracking-widest ml-1"> / 10</span>}
                             {pos && (
                                 <div className="flex items-center gap-3 ml-4 pl-4 border-l border-white/10">
                                     <div className="flex flex-col">
-                                        <span className="text-[8px] text-gray-500 font-black uppercase tracking-widest">PL (USD)</span>
+                                        <span className="text-[8px] text-gray-500 font-black uppercase tracking-widest">PL ({currency})</span>
                                         <span className={`text-sm font-black ${plAmount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                            {plAmount >= 0 ? '+' : ''}${(plAmount * (pos.quantity || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            {plAmount >= 0 ? '+' : ''}{currencySymbol}{(plAmount * (pos.quantity || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </span>
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-[8px] text-gray-500 font-black uppercase tracking-widest">Entry</span>
-                                        <span className="text-xs text-white font-bold">USD {pos.entryPrice.toFixed(3)}</span>
+                                        <span className="text-xs text-white font-bold">{currency} {pos.entryPrice.toFixed(3)}</span>
                                     </div>
                                 </div>
                             )}
@@ -498,7 +655,7 @@ export function StockModal(props) {
                                             <div className="flex items-center gap-3">
                                                 <div className="flex flex-col">
                                                     <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest leading-none mb-1 text-center">Price</span>
-                                                    <span className="text-white font-black text-sm">USD {(parseFloat(plan.price) || 0).toFixed(3)}</span>
+                                                    <span className="text-white font-black text-sm">{currency} {(parseFloat(plan.price) || 0).toFixed(3)}</span>
                                                 </div>
                                                 <div className="flex flex-col border-l border-white/10 pl-3">
                                                     <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest leading-none mb-1 text-center">Sentiment 4H</span>
@@ -526,15 +683,15 @@ export function StockModal(props) {
 
                             {/* Position Management */}
                             <PositionManager
-                                ticker={plan.ticker}
-                                currentPrice={plan.price}
-                                market={stock.market || 'USD'}
-                                existingPosition={pos}
+                                ticker={stock.ticker}
+                                currentPrice={plan?.price || stock.close}
+                                market={stock.market || market}
+                                existingPosition={positions[stock.ticker]}
                                 technicalLevels={plan.trade}
-                                recommendedStrategy={plan.trade.strategyLabel?.toLowerCase()}
-                                onSave={(data) => onSavePosition(plan.ticker, data)}
+                                recommendedStrategy={strategy}
+                                onSave={onSavePosition}
                                 onRemove={onRemovePosition}
-                                onSell={(data) => pos && onSellPosition({ ...data, ticker_full: plan.ticker, entry_price: pos.entryPrice, strategy: pos.strategy, buy_date: pos.buyDate })}
+                                onSell={onSellPosition}
                             />
 
                             {/* Automated Commentary Section */}
@@ -570,15 +727,15 @@ export function StockModal(props) {
                                     <tbody className="divide-y divide-white/5">
                                         <tr className="group hover:bg-white/5">
                                             <td className="p-3 text-gray-500 font-bold uppercase tracking-tighter">MA 20 (Short)</td>
-                                            <td className="p-3 text-right font-mono text-white font-black">{formatV(plan.indicators.ma20)}</td>
+                                            <td className="p-3 text-right font-mono text-white font-black">{formatValue(plan.indicators.ma20)}</td>
                                         </tr>
                                         <tr className="group hover:bg-white/5">
                                             <td className="p-3 text-gray-500 font-bold uppercase tracking-tighter">MA 50 (Med)</td>
-                                            <td className="p-3 text-right font-mono text-white font-black">{formatV(plan.indicators.ma50)}</td>
+                                            <td className="p-3 text-right font-mono text-white font-black">{formatValue(plan.indicators.ma50)}</td>
                                         </tr>
                                         <tr className="group hover:bg-white/5">
                                             <td className="p-3 text-gray-500 font-bold uppercase tracking-tighter">MA 200 (Long)</td>
-                                            <td className="p-3 text-right font-mono text-white font-black">{formatV(plan.indicators.ma200)}</td>
+                                            <td className="p-3 text-right font-mono text-white font-black">{formatValue(plan.indicators.ma200)}</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -683,14 +840,7 @@ export function StockModal(props) {
                                     }
                                 }
 
-                                const ChecklistItem = ({ checked, label }) => (
-                                    <div className="flex items-center gap-2 mb-1.5">
-                                        <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${checked ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : 'bg-white/5 border-white/10 text-gray-600'}`}>
-                                            {checked ? <CheckCircle className="w-2.5 h-2.5" /> : <div className="w-1 h-1 rounded-full bg-gray-600"></div>}
-                                        </div>
-                                        <span className={`text-[10px] font-bold ${checked ? 'text-gray-200' : 'text-gray-500'}`}>{label}</span>
-                                    </div>
-                                );
+
 
                                 return (
                                     <>
@@ -736,81 +886,93 @@ export function StockModal(props) {
                                             </div>
 
                                             {/* Status Boxes */}
-                                            {/* RSI Box */}
-                                            <div className="w-full grid grid-cols-2 gap-4 mt-4">
-                                                <div className="bg-white/5 rounded-2xl p-4 border border-white/5 hover:bg-white/10 transition-all">
-                                                    <div className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">RSI (14)</div>
-                                                    <div className="flex items-end gap-2">
-                                                        <span className={`text-xl font-black ${parseFloat(plan.indicators.rsi14) >= 70 ? 'text-red-400' : (parseFloat(plan.indicators.rsi14) <= 35 ? 'text-emerald-400' : 'text-white')}`}>
-                                                            {formatV(plan.indicators.rsi14, 1)}
+                                            <div className="w-full grid grid-cols-2 gap-4 mt-6">
+                                                <div className="bg-white/5 rounded-2xl p-5 border border-white/5 hover:bg-white/10 transition-all group/stat">
+                                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.1em] mb-2 group-hover/stat:text-gray-400 transition-colors">RSI (14)</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-2xl font-black ${parseFloat(plan.indicators.rsi14) >= 70 ? 'text-red-400' : (parseFloat(plan.indicators.rsi14) <= 35 ? 'text-emerald-400' : 'text-white')}`}>
+                                                            {formatValue(plan.indicators.rsi14, 1)}
                                                         </span>
-                                                        <span className="text-[10px] text-gray-500 font-bold mb-1 uppercase">{parseFloat(plan.indicators.rsi14) >= 70 ? 'O/Bought' : (parseFloat(plan.indicators.rsi14) <= 35 ? 'O/Sold' : 'Neutral')}</span>
+                                                        <span className="text-[9px] text-gray-500 font-black uppercase bg-white/5 px-2 py-0.5 rounded-md self-center">{parseFloat(plan.indicators.rsi14) >= 70 ? 'O/Bought' : (parseFloat(plan.indicators.rsi14) <= 35 ? 'O/Sold' : 'Neutral')}</span>
                                                     </div>
                                                 </div>
-                                                <div className="bg-white/5 rounded-2xl p-4 border border-white/5 hover:bg-white/10 transition-all">
-                                                    <div className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Daily Alignment</div>
-                                                    <div className="flex items-end gap-2">
-                                                        <span className={`text-xl font-black ${plan.multiTimeframe.tf1d ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                <div className="bg-white/5 rounded-2xl p-5 border border-white/5 hover:bg-white/10 transition-all group/stat">
+                                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.1em] mb-2 group-hover/stat:text-gray-400 transition-colors">Daily Alignment</div>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`text-2xl font-black ${plan.multiTimeframe.tf1d ? 'text-emerald-400' : 'text-red-400'}`}>
                                                             {plan.multiTimeframe.tf1d ? 'ALIGNED' : 'WEAK'}
                                                         </span>
-                                                        <div className={`w-2 h-2 rounded-full mb-2 ${plan.multiTimeframe.tf1d ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`}></div>
+                                                        <div className={`w-2.5 h-2.5 rounded-full ${plan.multiTimeframe.tf1d ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-red-500 animate-pulse'}`}></div>
                                                     </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Checklist Section */}
-                                            <div className="w-full space-y-3 mt-6">
-                                                <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                                                    <CheckCircle className="w-3.5 h-3.5" /> Double Go Checklist
-                                                </h4>
-                                                <div className="grid grid-cols-1 gap-2">
-                                                    {plan.checklist.map((item, idx) => (
-                                                        <div key={idx} className={`flex flex-col p-3 rounded-xl border transition-all ${item.passed ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-red-500/5 border-red-500/10'}`}>
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className={`p-1 rounded-lg ${item.passed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                                                                        {item.passed ? <CheckCircle className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                                                                    </div>
-                                                                    <span className={`text-[10px] font-bold ${item.passed ? 'text-gray-200' : 'text-red-300'}`}>
-                                                                        {item.label}
-                                                                    </span>
-                                                                </div>
-                                                                <span className={`text-[10px] font-black mono ${item.passed ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                                    {item.value}
-                                                                </span>
-                                                            </div>
-                                                            {item.note && (
-                                                                <div className="text-[9px] text-gray-500 font-medium pl-6">
-                                                                    {item.note}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ))}
                                                 </div>
                                             </div>
 
                                             {/* Wait for RR 2.0 Pricing Notice - Only show if NO active position */}
                                             {!pos && plan.trade?.queuePrice && parseFloat(plan.price) > parseFloat(plan.trade.queuePrice) && (
-                                                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 relative overflow-hidden group/notice animate-in zoom-in-95 duration-500">
+                                                <div className="w-full mt-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 relative overflow-hidden group/notice animate-in slide-in-from-top-2 duration-500">
                                                     <div className="absolute top-0 right-0 p-4 opacity-10">
                                                         <Clock className="w-12 h-12 text-emerald-400" />
                                                     </div>
-                                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                                        <div>
-                                                            <div className="flex items-center gap-2 mb-1">
+                                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-center gap-2">
                                                                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Wait for RR 2.0 @</span>
-                                                                <Clock className="w-3 h-3 text-emerald-500 animate-pulse" />
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
                                                             </div>
-                                                            <div className="text-3xl font-black text-emerald-400 tracking-tighter">
-                                                                USD {parseFloat(plan.trade.queuePrice).toFixed(3)}
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex flex-col items-end">
-                                                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Que Price</span>
-                                                            <div className="bg-emerald-500/20 text-emerald-400 px-4 py-1.5 rounded-xl border border-emerald-500/30 font-black text-[10px] uppercase tracking-tighter">
-                                                                (Advantage)
+                                                            <div className="text-4xl font-black text-emerald-400 tracking-tighter">
+                                                                <span className="text-xl text-emerald-500/60 mr-2">{currency}</span>
+                                                                {parseFloat(plan.trade.queuePrice).toFixed(3)}
                                                             </div>
                                                         </div>
+                                                        <div className="flex flex-col md:items-end gap-2">
+                                                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest leading-none">Que Strategy</span>
+                                                            <div className="bg-emerald-500/20 text-emerald-400 px-5 py-2 rounded-xl border border-emerald-500/30 font-black text-[11px] uppercase tracking-wider shadow-lg shadow-emerald-500/5">
+                                                                (ADVANTAGE QUE)
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Checklist Section - Show ENTRY checklist if NO position, or HOLDING checklist if position exists */}
+                                            {((!pos && plan.checklist?.length > 0) || (pos && plan.holdingChecklist?.length > 0)) && (
+                                                <div className="w-full mt-6 space-y-3">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                                                            {pos
+                                                                ? '🛡️ Status Pegangan (Management)'
+                                                                : (plan.verdictLabel === 'DOUBLE GO' ? '🔥 DOUBLE GO Checklist' : 'Saringan Masuk (Checklist)')
+                                                            }
+                                                        </h4>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[9px] font-bold text-emerald-500">
+                                                                {(pos ? plan.holdingChecklist : plan.checklist).filter(c => c.passed).length}/{(pos ? plan.holdingChecklist : plan.checklist).length}
+                                                            </span>
+                                                            <div className="w-16 h-1 bg-white/5 rounded-full overflow-hidden">
+                                                                <div
+                                                                    className="h-full bg-emerald-500 transition-all duration-1000"
+                                                                    style={{
+                                                                        width: `${((pos ? plan.holdingChecklist : plan.checklist).filter(c => c.passed).length / (pos ? plan.holdingChecklist : plan.checklist).length) * 100}%`
+                                                                    }}
+                                                                ></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 gap-2">
+                                                        {(pos ? plan.holdingChecklist : plan.checklist).map((item, idx) => (
+                                                            <div key={idx} className={`flex items-center justify-between p-3 rounded-xl border transition-all duration-300 ${item.passed ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/5 border-white/5 opacity-60'}`}>
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${item.passed ? 'bg-emerald-500 text-black' : 'bg-gray-800 text-gray-600'}`}>
+                                                                        <CheckCircle className="w-3 h-3" strokeWidth={3} />
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className={`text-[11px] font-black uppercase tracking-tight ${item.passed ? 'text-white' : 'text-gray-500'}`}>{item.label}</span>
+                                                                        {item.note && <span className="text-[9px] text-gray-500 font-medium">{item.note}</span>}
+                                                                    </div>
+                                                                </div>
+                                                                <span className={`text-[10px] font-black ${item.passed ? 'text-emerald-400' : 'text-gray-600'}`}>{item.value}</span>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             )}
@@ -875,6 +1037,100 @@ export function StockModal(props) {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Telegram Smart Alerts */}
+                            {isFav && (
+                                <div className="space-y-3 pt-4 border-t border-white/5">
+                                    <div className="flex items-center gap-2 py-1">
+                                        <Bell className="w-3.5 h-3.5 text-gray-400" />
+                                        <h3 className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em]">Telegram Smart Alerts</h3>
+                                    </div>
+
+                                    <div className={`grid ${pos ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
+                                        {(() => {
+                                            const detail = favouriteDetails[stock.ticker_full || stock.ticker] || {};
+
+                                            if (pos) {
+                                                // Owned: Show compact TP/SL buttons
+                                                return (
+                                                    <>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const newSettings = {
+                                                                    alert_go: false,
+                                                                    alert_tp: !detail.alert_tp,
+                                                                    alert_sl: detail.alert_sl || false
+                                                                };
+                                                                onToggleAlert(stock.ticker_full || stock.ticker, null, newSettings);
+                                                            }}
+                                                            className={`relative overflow-hidden p-3 rounded-2xl border transition-all duration-300 group ${detail.alert_tp
+                                                                ? 'bg-emerald-500/10 border-emerald-500/30'
+                                                                : 'bg-white/5 border-white/5 hover:bg-white/10 opacity-60'}`}
+                                                        >
+                                                            <div className="flex flex-col items-center gap-2 relative z-10">
+                                                                <TrendingUp className={`w-5 h-5 ${detail.alert_tp ? 'text-emerald-400' : 'text-gray-600'}`} />
+                                                                <span className={`text-[10px] font-black uppercase tracking-widest ${detail.alert_tp ? 'text-white' : 'text-gray-500'}`}>Target Price</span>
+                                                                <div className={`h-1 w-8 rounded-full transition-all duration-500 ${detail.alert_tp ? 'bg-emerald-500' : 'bg-transparent'}`}></div>
+                                                            </div>
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const newSettings = {
+                                                                    alert_go: false,
+                                                                    alert_tp: detail.alert_tp || false,
+                                                                    alert_sl: !detail.alert_sl
+                                                                };
+                                                                onToggleAlert(stock.ticker_full || stock.ticker, null, newSettings);
+                                                            }}
+                                                            className={`relative overflow-hidden p-3 rounded-2xl border transition-all duration-300 group ${detail.alert_sl
+                                                                ? 'bg-red-500/10 border-red-500/30'
+                                                                : 'bg-white/5 border-white/5 hover:bg-white/10 opacity-60'}`}
+                                                        >
+                                                            <div className="flex flex-col items-center gap-2 relative z-10">
+                                                                <TrendingDown className={`w-5 h-5 ${detail.alert_sl ? 'text-red-400' : 'text-gray-600'}`} />
+                                                                <span className={`text-[10px] font-black uppercase tracking-widest ${detail.alert_sl ? 'text-white' : 'text-gray-500'}`}>Stop Loss</span>
+                                                                <div className={`h-1 w-8 rounded-full transition-all duration-500 ${detail.alert_sl ? 'bg-red-500' : 'bg-transparent'}`}></div>
+                                                            </div>
+                                                        </button>
+                                                    </>
+                                                );
+                                            } else {
+                                                // Not owned: Show compact Signal Go button
+                                                const isActive = detail.alert_go;
+                                                return (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const newSettings = {
+                                                                alert_go: !isActive,
+                                                                alert_tp: false,
+                                                                alert_sl: false
+                                                            };
+                                                            onToggleAlert(stock.ticker_full || stock.ticker, null, newSettings);
+                                                        }}
+                                                        className={`relative overflow-hidden p-4 rounded-2xl border transition-all duration-300 group ${isActive
+                                                            ? 'bg-indigo-500/10 border-indigo-500/30'
+                                                            : 'bg-white/5 border-white/5 hover:bg-white/10 opacity-60'}`}
+                                                    >
+                                                        <div className="flex flex-col items-center gap-2 relative z-10">
+                                                            <Activity className={`w-6 h-6 ${isActive ? 'text-indigo-400 animate-pulse' : 'text-gray-600'}`} />
+                                                            <span className={`text-sm font-black uppercase tracking-widest ${isActive ? 'text-white' : 'text-gray-500'}`}>Activate Signal GO</span>
+                                                            <div className={`h-1 w-10 rounded-full transition-all duration-500 ${isActive ? 'bg-indigo-500' : 'bg-transparent'}`}></div>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            }
+                                        })()}
+                                    </div>
+                                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest text-center opacity-50 leading-relaxed px-4">
+                                        {pos
+                                            ? "Pantauan harga TP/SL secara automatik."
+                                            : "Terima isyarat terus ke Telegram anda."}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -890,16 +1146,21 @@ export function StockModal(props) {
                                         <label className="text-[10px] text-gray-500 uppercase font-black block mb-1.5 tracking-widest">Entry Trigger</label>
                                         <div className="text-sm text-white font-bold leading-relaxed">{plan.raw?.liveStock?.planText?.entryTrigger || stock.planText?.entryTrigger}</div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-3 gap-4">
                                         <div>
-                                            <label className="text-[10px] text-gray-500 uppercase font-black block mb-1.5 tracking-widest">Target 1 (TP)</label>
-                                            <div className="text-xl font-black text-emerald-400">USD {(plan.trade?.tp1 || stock.levels?.target1 || 0).toFixed(3)}</div>
-                                            <div className="text-[10px] text-emerald-500/60 font-bold">+{(((plan.trade?.tp1 || stock.levels?.target1 || 0) - plan.price) / plan.price * 100).toFixed(1)}% Potensi</div>
+                                            <label className="text-[10px] text-gray-500 uppercase font-black block mb-1.5 tracking-widest">TP 1</label>
+                                            <div className="text-lg font-black text-emerald-400">{currency} {(plan.trade?.tp1 || stock.levels?.target1 || 0).toFixed(3)}</div>
+                                            <div className="text-[9px] text-emerald-500/60 font-bold">+{(((plan.trade?.tp1 || stock.levels?.target1 || 0) - plan.price) / plan.price * 100).toFixed(1)}%</div>
                                         </div>
                                         <div>
-                                            <label className="text-[10px] text-gray-500 uppercase font-black block mb-1.5 tracking-widest">Stop Loss (Exit)</label>
-                                            <div className="text-xl font-black text-red-400">USD {(plan.trade?.stopLoss || stock.levels?.stopPrice || 0).toFixed(3)}</div>
-                                            <div className="text-[10px] text-red-500/60 font-bold">Risk: {((plan.price - (plan.trade?.stopLoss || stock.levels?.stopPrice || 0)) / plan.price * 100).toFixed(1)}%</div>
+                                            <label className="text-[10px] text-gray-500 uppercase font-black block mb-1.5 tracking-widest">TP 2</label>
+                                            <div className="text-lg font-black text-teal-400">{currency} {(plan.trade?.tp2 || stock.levels?.target2 || 0).toFixed(3)}</div>
+                                            <div className="text-[9px] text-teal-500/60 font-bold">+{(((plan.trade?.tp2 || stock.levels?.target2 || 0) - plan.price) / plan.price * 100).toFixed(1)}%</div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-500 uppercase font-black block mb-1.5 tracking-widest">SL (Exit)</label>
+                                            <div className="text-lg font-black text-red-400">{currency} {(plan.trade?.stopLoss || stock.levels?.stopPrice || 0).toFixed(3)}</div>
+                                            <div className="text-[9px] text-red-500/60 font-bold">-{((plan.price - (plan.trade?.stopLoss || stock.levels?.stopPrice || 0)) / plan.price * 100).toFixed(1)}%</div>
                                         </div>
                                     </div>
                                 </div>
@@ -913,18 +1174,62 @@ export function StockModal(props) {
                             </div>
                         </div>
                     )}
+
+                    {/* Inline Chart Drawer */}
+                    {showChart && (
+                        <div className="mt-8 pt-8 border-t border-white/5 animate-in slide-in-from-bottom-4 duration-500">
+                            <div className="flex items-center justify-between mb-4 px-2">
+                                <h3 className="text-[10px] font-black text-primary flex items-center gap-2 uppercase tracking-[0.2em]">
+                                    <BarChart2 className="w-4 h-4" /> Live Interactive Chart
+                                </h3>
+                                <button
+                                    onClick={() => setShowChart(false)}
+                                    className="text-[9px] font-black text-gray-500 hover:text-white uppercase tracking-widest bg-white/5 px-3 py-1 rounded-lg border border-white/5 transition-all"
+                                >
+                                    Close Chart
+                                </button>
+                            </div>
+                            <div className="w-full bg-black/40 rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative" style={{ height: '50vh', minHeight: '400px' }}>
+                                <TradingViewWidget key={stock.ticker} ticker={stock.ticker} market={market} stock={stock} />
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer - Sticky Bottom */}
                 <div className="sticky bottom-0 z-30 p-6 md:p-8 border-t border-white/5 bg-surfaceHighlight/50 backdrop-blur-xl flex justify-between items-center shrink-0">
-                    <a
-                        href={`https://www.tradingview.com/chart/?symbol=${(plan.ticker || "").split('.')[0]}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-[10px] md:text-xs font-black text-gray-400 hover:text-white uppercase tracking-widest transition-all bg-white/5 hover:bg-white/10 px-6 py-3 rounded-xl border border-white/5"
-                    >
-                        <ExternalLink className="w-4 h-4 text-primary" /> Open in TradingView
-                    </a>
+                    <div className="flex items-center gap-4 md:gap-6">
+                        {!isBursa ? (
+                            <>
+                                <button
+                                    onClick={() => setShowChart(!showChart)}
+                                    className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 border ${showChart
+                                        ? 'bg-orange-500 text-white border-orange-400 shadow-orange-500/20'
+                                        : 'bg-white/5 text-white border-white/10 hover:bg-white/10'}`}
+                                >
+                                    <BarChart2 className="w-4 h-4" />
+                                    {showChart ? 'Tutup Carta' : 'Lihat Carta'}
+                                </button>
+                                <a
+                                    href={`https://www.tradingview.com/chart/?symbol=${normalizeTradingViewSymbol(stock.ticker, market, stock)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] font-black text-gray-500 hover:text-primary uppercase tracking-widest transition-all flex items-center gap-1.5"
+                                >
+                                    <ExternalLink className="w-3 h-3" /> New Tab
+                                </a>
+                            </>
+                        ) : (
+                            <a
+                                href={`https://www.tradingview.com/chart/?symbol=${normalizeTradingViewSymbol(stock.ticker, market, stock)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 border bg-orange-500/10 text-orange-400 border-orange-500/20 hover:bg-orange-500/20 hover:border-orange-500/40"
+                            >
+                                <ExternalLink className="w-4 h-4" /> Buka Carta (New Tab)
+                            </a>
+                        )}
+                    </div>
 
                     <button
                         onClick={onClose}
@@ -936,4 +1241,4 @@ export function StockModal(props) {
             </div>
         </div>
     );
-};
+}
