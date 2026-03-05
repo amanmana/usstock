@@ -104,8 +104,13 @@ export const handler = async (event, context) => {
             })
             .eq('id', jobId);
 
-        // Optional: Trigger screener calculation for US results separately if needed
-        // For now, let it be picked up by the next computeScreener run or user demand.
+        // TRIGGER COMPUTE SCREENER FOR US
+        try {
+            console.log('Triggering Screener Computation for US...');
+            await fetch('https://us-stock-screener-amanmana.netlify.app/.netlify/functions/computeScreener?market=US');
+        } catch (e) {
+            console.error('Failed to trigger computeScreener:', e.message);
+        }
 
         return {
             statusCode: 200,

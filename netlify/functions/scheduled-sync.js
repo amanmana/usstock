@@ -102,6 +102,14 @@ export const handler = async (event, context) => {
             })
             .eq('id', jobId);
 
+        // TRIGGER COMPUTE SCREENER FOR BURSA
+        try {
+            console.log('Triggering Screener Computation for Bursa...');
+            await fetch('https://us-stock-screener-amanmana.netlify.app/.netlify/functions/computeScreener?market=MYR');
+        } catch (e) {
+            console.error('Failed to trigger computeScreener:', e.message);
+        }
+
         return {
             statusCode: 200,
             body: JSON.stringify({ status: 'done', processed, success, failed })

@@ -9,8 +9,9 @@ export const handler = async (event) => {
 
     let query = supabase
         .from('klse_stocks')
-        .select('ticker_full, company_name, shariah_status, is_active, source_origin')
-        .order('ticker_full', { ascending: true });
+        .select('ticker_full, company_name, shariah_status, is_active, source_origin, market, is_top300')
+        .order('ticker_full', { ascending: true })
+        .limit(5000);
 
     if (activeOnly) {
         query = query.eq('is_active', true);

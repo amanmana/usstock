@@ -21,6 +21,11 @@ import { usePositions } from '../hooks/usePositions';
 const FavouritesPage = () => {
     const navigate = useNavigate();
     const { results, loading, refetch } = useScreener();
+
+    // Force fetch the universal universe for both US and Bursa scores
+    React.useEffect(() => {
+        refetch('universe_all_real');
+    }, []);
     const { favouriteTickers, favouriteDetails, toggleFavourite, toggleAlert, addCustomFavourite, loadingFavs } = useFavourites();
     const { positions, addPosition, removePosition } = usePositions();
 
@@ -32,6 +37,7 @@ const FavouritesPage = () => {
     const [addStatus, setAddStatus] = useState(''); // 'validating', 'importing', 'computing', 'success', 'error'
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [localResults, setLocalResults] = useState({}); // Ticker -> updated stock object
 
     // Latest Prices Tracking
     const [latestPrices, setLatestPrices] = useState({}); // Ticker -> { close, volume, updatedAt }
@@ -52,8 +58,7 @@ const FavouritesPage = () => {
                 data.forEach(item => {
                     if (item.close) {
                         priceMap[item.ticker] = {
-                            close: item.close,
-                            volume: item.volume,
+                            ...item,
                             updatedAt: new Date()
                         };
                     }
@@ -85,39 +90,62 @@ const FavouritesPage = () => {
         return () => clearInterval(interval);
     }, [favouriteTickers]);
 
-    // Filter results to show only those in the favourite list
-    // Inject latest prices if available
-    const favResults = favouriteTickers.map(ticker => {
+    // 1. Get unique stocks only (to avoid duplicates from aliases like 5080 and 5080.KL)
+    const uniqueTickers = Array.from(new Set(
+        favouriteTickers
+            .map(t => favouriteDetails[t]?.ticker_full)
+            .filter(Boolean)
+    ));
+
+    // 2. Map results with latest data
+    const favResults = uniqueTickers.map(ticker => {
+        const details = favouriteDetails[ticker] || {};
+        const localStock = localResults[ticker];
         const analyzeResult = (results || []).find(r => r.ticker === ticker);
         const latestInfo = latestPrices[ticker];
 
-        if (analyzeResult) {
+        const base = localStock || analyzeResult;
+        const market = details.market || (ticker.endsWith('.KL') ? 'MYR' : 'US');
+
+        if (base) {
             return {
-                ...analyzeResult,
-                close: latestInfo?.close || analyzeResult.close,
-                isLivePrice: !!latestInfo
+                ...base,
+                ticker: ticker,
+                market,
+                close: latestInfo?.close || base.close,
+                score: latestInfo?.score ?? base.score,
+                momentumScore: latestInfo?.momentumScore ?? base.momentumScore,
+                signals: latestInfo?.signals || base.signals,
+                stats: {
+                    ...base.stats,
+                    rsi14: latestInfo?.rsi14 ?? base.stats?.rsi14,
+                    dropdownPercent: latestInfo?.dropdownPercent ?? base.stats?.dropdownPercent
+                },
+                isLivePrice: !!latestInfo || !!localStock
             };
         }
-
-        const details = favouriteDetails[ticker] || {};
 
         // Pending state placeholder
         return {
             ticker: ticker,
+            market,
             company: details.company_name || 'Loading Data...',
-            score: null,
-            momentumScore: null,
+            score: latestInfo?.score || null,
+            momentumScore: latestInfo?.momentumScore || null,
             close: latestInfo?.close || 0,
             isLivePrice: !!latestInfo,
-            stats: { rsi14: null, dropdownPercent: null },
-            signals: ['PENDING'],
-            isPending: true
+            stats: {
+                rsi14: latestInfo?.rsi14 || null,
+                dropdownPercent: latestInfo?.dropdownPercent || null
+            },
+            signals: latestInfo?.signals || ['PENDING'],
+            isPending: !latestInfo
         };
     });
 
-    // Categorize and filter results
-    const usStocks = favResults.filter(s => !s.ticker.endsWith('.KL'));
-    const bursaStocks = favResults.filter(s => s.ticker.endsWith('.KL'));
+    // 3. Categorize and filter results based on robust market field
+    const usStocks = favResults.filter(s => s.market?.includes('US'));
+    const bursaStocks = favResults.filter(s => s.market?.includes('MYR') || s.market?.includes('KLSE'));
     const displayResults = activeTab === 'US' ? usStocks : bursaStocks;
 
     // Debounced search for the modal
@@ -479,6 +507,12 @@ const FavouritesPage = () => {
                         positions={positions}
                         onSavePosition={addPosition}
                         onRemovePosition={removePosition}
+                        onStockUpdate={(ticker, updatedStock) => {
+                            setLocalResults(prev => ({
+                                ...prev,
+                                [ticker]: updatedStock
+                            }));
+                        }}
                     />
                 )}
             </div>

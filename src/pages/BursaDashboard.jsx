@@ -47,7 +47,7 @@ function BursaDashboard() {
                 if (!data || data.error) return;
                 setSystemStats(data);
                 // Bursa Market Context
-                refetch('shariah_top300_real');
+                refetch('universe_myr_real');
             })
             .catch(e => console.error("System Status Fetch Error:", e));
     }, []);

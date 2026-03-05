@@ -56,7 +56,7 @@ function Dashboard() {
         if (!data || data.error) return;
         setSystemStats(data);
         // Force production universe
-        refetch('shariah_top300_real');
+        refetch('universe_us_real');
       })
       .catch(e => console.error("System Status Fetch Error:", e));
   }, []);

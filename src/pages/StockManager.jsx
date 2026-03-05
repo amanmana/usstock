@@ -171,12 +171,41 @@ const StockManagerPage = () => {
         }
     };
 
-    const usStocks = stocks.filter(s => !s.ticker_full.endsWith('.KL'));
-    const bursaStocks = stocks.filter(s => s.ticker_full.endsWith('.KL'));
+    const usStocks = stocks.filter(s => s.market?.includes('US') || (!s.ticker_full.endsWith('.KL') && !s.market));
+    const bursaStocks = stocks.filter(s => s.market?.includes('MYR') || s.market?.includes('KLSE') || s.ticker_full.endsWith('.KL'));
     const displayStocks = activeTab === 'US' ? usStocks : bursaStocks;
 
     const shariahCount = displayStocks.filter(s => s.shariah_status === 'SHARIAH').length;
     const nonShariahCount = displayStocks.filter(s => s.shariah_status !== 'SHARIAH').length;
+    const top300Count = displayStocks.filter(s => s.is_top300).length;
+
+    const handleCleanBursa = async () => {
+        const nonTop300 = bursaStocks.filter(s => !s.is_top300).map(s => s.ticker_full);
+        if (nonTop300.length === 0) return;
+
+        if (!window.confirm(`Adakah anda pasti mahu nyahaktifkan ${nonTop300.length} counter Bursa yang BUKAN Top 300?`)) return;
+
+        setIsDeactivating(true);
+        setDeactivateStatus('loading');
+        try {
+            const res = await fetch('/.netlify/functions/bulkDeactivateTickers', {
+                method: 'POST',
+                body: JSON.stringify({ tickers: nonTop300 })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setDeactivateStatus('success');
+                await fetchStocks();
+                setTimeout(() => setDeactivateStatus(''), 3000);
+            } else {
+                setDeactivateStatus('error');
+            }
+        } catch (e) {
+            setDeactivateStatus('error');
+        } finally {
+            setIsDeactivating(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-background text-text-primary font-sans p-6 md:p-10 pb-28">
@@ -205,7 +234,7 @@ const StockManagerPage = () => {
                 </div>
 
                 {/* Summary Stats */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                     <div className="bg-white/5 border border-white/[0.02] rounded-2xl p-4 text-center">
                         <div className="text-3xl font-black text-white">{displayStocks.length}</div>
                         <div className="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">Total Aktif ({activeTab})</div>
@@ -213,6 +242,10 @@ const StockManagerPage = () => {
                     <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-4 text-center">
                         <div className="text-3xl font-black text-emerald-400">{shariahCount}</div>
                         <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1">✅ Syariah</div>
+                    </div>
+                    <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-4 text-center border-dashed">
+                        <div className="text-3xl font-black text-indigo-400">{top300Count}</div>
+                        <div className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-1">🏷️ Top 300 / Blue Chip</div>
                     </div>
                     <div className="bg-red-500/5 border border-red-500/10 rounded-2xl p-4 text-center">
                         <div className="text-3xl font-black text-red-400">{nonShariahCount}</div>
@@ -225,8 +258,8 @@ const StockManagerPage = () => {
                     <button
                         onClick={() => setActiveTab('US')}
                         className={`flex items-center gap-3 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all duration-300 ${activeTab === 'US'
-                                ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]'
-                                : 'text-gray-500 hover:text-white hover:bg-white/5'
+                            ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]'
+                            : 'text-gray-500 hover:text-white hover:bg-white/5'
                             }`}
                     >
                         🇺🇸 US Market
@@ -237,8 +270,8 @@ const StockManagerPage = () => {
                     <button
                         onClick={() => setActiveTab('Bursa')}
                         className={`flex items-center gap-3 px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all duration-300 ${activeTab === 'Bursa'
-                                ? 'bg-primary text-white shadow-[0_0_20px_rgba(var(--primary-rgb, 59, 130, 246),0.3)]'
-                                : 'text-gray-500 hover:text-white hover:bg-white/5'
+                            ? 'bg-primary text-white shadow-[0_0_20px_rgba(var(--primary-rgb, 59, 130, 246),0.3)]'
+                            : 'text-gray-500 hover:text-white hover:bg-white/5'
                             }`}
                     >
                         🇲🇾 Bursa Malaysia
@@ -256,6 +289,15 @@ const StockManagerPage = () => {
                             {loadingStocks && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
                         </div>
                         <div className="flex items-center gap-3">
+                            {activeTab === 'Bursa' && bursaStocks.length > 300 && (
+                                <button
+                                    onClick={handleCleanBursa}
+                                    className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-black uppercase transition-all"
+                                >
+                                    <Zap className="w-3.5 h-3.5" />
+                                    Bursa Clean Up (Keep Top 300 Only)
+                                </button>
+                            )}
                             {selected.size > 0 && (
                                 <button
                                     onClick={handleDeactivate}
@@ -298,6 +340,7 @@ const StockManagerPage = () => {
                                         </button>
                                     </th>
                                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-gray-500">Ticker</th>
+                                    <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-gray-500">Blueprint / Blue Chip</th>
                                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-gray-500">Nama Syarikat</th>
                                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-gray-500">Status Syariah</th>
                                     <th className="px-4 py-3 text-left text-[10px] font-black uppercase tracking-widest text-gray-500">Sumber</th>
@@ -323,6 +366,15 @@ const StockManagerPage = () => {
                                                 : <Square className="w-4 h-4 text-gray-600" />}
                                         </td>
                                         <td className="px-4 py-3 font-black text-white">{stock.ticker_full}</td>
+                                        <td className="px-4 py-3">
+                                            {stock.is_top300 ? (
+                                                <span className="flex items-center gap-1.5 text-indigo-400 font-black text-[9px] uppercase">
+                                                    <CheckCircle className="w-3 h-3" /> Top 300
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-700 text-[9px] uppercase font-bold italic">Normal Stock</span>
+                                            )}
+                                        </td>
                                         <td className="px-4 py-3 text-gray-400">{stock.company_name}</td>
                                         <td className="px-4 py-3">
                                             <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${stock.shariah_status === 'SHARIAH' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
