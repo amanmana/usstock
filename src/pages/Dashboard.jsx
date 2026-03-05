@@ -105,7 +105,8 @@ function Dashboard() {
   };
 
   // MAIN LIST RULE: Filter and Sort based on active tab
-  const resultsArray = Array.isArray(results) ? results : [];
+  const rawResults = localResults || (Array.isArray(results) ? results : []);
+  const resultsArray = rawResults.filter(s => s && s.market !== 'MYR' && s.market !== 'KLSE');
 
   const filteredResults = [...resultsArray]
     .filter(stock => {
@@ -128,7 +129,10 @@ function Dashboard() {
       }
 
       // 3. Score Filter
-      const scoreToUse = (activeTab === 'momentum' ? stock.momentumScore : (stock.score || 0));
+      const isHybrid = activeTab === 'hybrid';
+      const scoreToUse = isHybrid
+        ? Math.max(parseFloat(stock.momentumScore) || 0, parseFloat(stock.score) || 0)
+        : (activeTab === 'momentum' ? stock.momentumScore : (stock.score || 0));
       const scoreNum = parseFloat(scoreToUse) || 0;
       if (scoreNum < parseFloat(minScore)) return false;
 
@@ -140,8 +144,13 @@ function Dashboard() {
       return true;
     })
     .sort((a, b) => {
-      const scoreA = parseFloat(activeTab === 'momentum' ? a.momentumScore : a.score) || 0;
-      const scoreB = parseFloat(activeTab === 'momentum' ? b.momentumScore : b.score) || 0;
+      const isHybrid = activeTab === 'hybrid';
+      const scoreA = isHybrid
+        ? Math.max(parseFloat(a.momentumScore) || 0, parseFloat(a.score) || 0)
+        : parseFloat(activeTab === 'momentum' ? a.momentumScore : a.score) || 0;
+      const scoreB = isHybrid
+        ? Math.max(parseFloat(b.momentumScore) || 0, parseFloat(b.score) || 0)
+        : parseFloat(activeTab === 'momentum' ? b.momentumScore : b.score) || 0;
       return scoreB - scoreA;
     });
 
@@ -450,6 +459,22 @@ function Dashboard() {
           </div>
           <span className={`text-[9px] font-bold opacity-70 uppercase ${activeTab === 'momentum' ? 'text-white' : ''}`}>
             Breakout / Trend Follow
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab('hybrid')}
+          className={`
+            flex flex-col items-center gap-0.5 px-8 py-2.5 rounded-lg transition-all
+            ${activeTab === 'hybrid'
+              ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]'
+              : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}
+          `}
+        >
+          <div className="flex items-center gap-2 font-black tracking-tighter text-sm uppercase">
+            <Activity className="w-4 h-4" /> HYBRID
+          </div>
+          <span className={`text-[9px] font-bold opacity-70 uppercase ${activeTab === 'hybrid' ? 'text-white' : ''}`}>
+            Best of Both Worlds
           </span>
         </button>
       </div>
