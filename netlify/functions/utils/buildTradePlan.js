@@ -118,13 +118,20 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
         // Double Go Trigger
         const isMTFAligned = confirmedCount === totalCount && totalCount >= 2;
         const isHighConviction = score >= 8.0;
+        const isSomeAlignment = confirmedCount >= 1;
 
         if (isMTFAligned && isHighConviction && rrRatio >= 2.0) {
             verdictLabel = "DOUBLE GO";
             advice = "SAH: DOUBLE GO! Semua parameter (MTF, Setup, RR) dalam keadaan sempurna.";
-        } else {
+        } else if (isSomeAlignment || score >= 7.5) {
             verdictLabel = "GO";
             advice = "PELUANG ENTRY: Syarat teknikal dipenuhi. Sesuai untuk beli mengikut strategi.";
+        } else {
+            // Price is in setup zone but momentum is still 0/3 or score is low
+            verdictLabel = "WAIT";
+            advice = isPullback
+                ? "TUNGGU (WAIT): Harga berada dalam zon 'Pullback' TAPI momentum intraday masih bearish. Tunggu isyarat reversal (lilin hijau) sebelum masuk."
+                : "TUNGGU (WAIT): Menunggu pengesahan momentum intraday untuk menyokong setup breakout.";
         }
     } else {
         verdictLabel = "WAIT";
