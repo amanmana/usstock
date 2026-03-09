@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, TrendingUp, TrendingDown, BarChart2, ExternalLink, Heart, CheckCircle, Loader2, Info, AlertOctagon, Activity, RefreshCw, Bell, BellOff, Zap, Target, Clock } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, BarChart2, ExternalLink, Heart, CheckCircle, Loader2, Info, AlertOctagon, Activity, RefreshCw, Bell, BellOff, Zap, Target, Clock, Copy, Check } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import StockChart from './StockChart';
 import { PositionManager } from './PositionManager';
@@ -241,6 +241,7 @@ export function StockModal({
     const [loadingTradePlan, setLoadingTradePlan] = useState(false);
     const [isShariahUpdating, setIsShariahUpdating] = useState(false);
     const [showChart, setShowChart] = useState(false);
+    const [copiedPlan, setCopiedPlan] = useState(false);
 
     const fetchTradePlan = (ticker) => {
         if (!ticker) {
@@ -1055,14 +1056,48 @@ export function StockModal({
                                                 <Zap className="w-32 h-32 text-emerald-400" />
                                             </div>
                                             <div className="space-y-5">
-                                                <div className="flex items-center gap-2.5 pb-3 border-b border-white/5">
-                                                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                                                        <Zap className="w-4 h-4 text-emerald-400 fill-emerald-400/20" />
+                                                <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                                                            <Zap className="w-4 h-4 text-emerald-400 fill-emerald-400/20" />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Pelan Tindakan Segera</h3>
+                                                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest leading-none">Quick Execution Summary</span>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Pelan Tindakan Segera</h3>
-                                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest leading-none">Quick Execution Summary</span>
-                                                    </div>
+                                                    {/* Copy to WhatsApp button */}
+                                                    <button
+                                                        onClick={() => {
+                                                            const shortName = stock.short_name || plan.raw?.liveStock?.shortName || stock.company_name?.split(' ')[0] || stock.company?.split(' ')[0] || (favouriteDetails && favouriteDetails[stock.ticker]?.short_name) || stock.ticker?.replace('.KL', '') || stock.ticker || 'SAHAM';
+                                                            const tickerLabel = stock.ticker || '';
+                                                            const entryRange = plan.trade.queuePrice?.toFixed(3) === plan.trade.entryPrice?.toFixed(3)
+                                                                ? `${currency} ${plan.trade.entryPrice?.toFixed(3) || '0.000'}`
+                                                                : `${currency} ${plan.trade.queuePrice?.toFixed(3) || '0.000'} - ${plan.trade.entryPrice?.toFixed(3) || '0.000'}`;
+                                                            const msg = [
+                                                                `📊 *${shortName}* (${tickerLabel})`,
+                                                                ``,
+                                                                `📈 Entry Range: ${entryRange}`,
+                                                                `🛑 Stop Loss: ${currency} ${plan.trade.stopLoss?.toFixed(3) || '0.000'} & Below`,
+                                                                `🎯 TP1: ${plan.trade.tp1?.toFixed(3) || '-'} | TP2: ${plan.trade.tp2?.toFixed(3) || '-'}`,
+                                                                `⏰ Tempoh: 1-20 Trading Days`,
+                                                                ``,
+                                                                `💰 Harga Semasa: ${currency} ${parseFloat(plan.price || 0).toFixed(3)}`,
+                                                            ].join('\n');
+                                                            navigator.clipboard.writeText(msg).then(() => {
+                                                                setCopiedPlan(true);
+                                                                setTimeout(() => setCopiedPlan(false), 2000);
+                                                            });
+                                                        }}
+                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${copiedPlan
+                                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                            : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20'
+                                                            }`}
+                                                        title="Copy untuk WhatsApp"
+                                                    >
+                                                        {copiedPlan ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                                        {copiedPlan ? 'Copied!' : 'Copy'}
+                                                    </button>
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-6">
