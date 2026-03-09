@@ -33,12 +33,7 @@ function BursaDashboard() {
     const [systemStats, setSystemStats] = useState(null);
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState(null);
-    const [livePrices, setLivePrices] = useState({});
-    const [localResults, setLocalResults] = useState(null);
-
-    useEffect(() => {
-        if (results) setLocalResults(null);
-    }, [results]);
+    const [liveUpdates, setLiveUpdates] = useState({});
 
     useEffect(() => {
         fetch('/.netlify/functions/systemStatus')
@@ -53,8 +48,8 @@ function BursaDashboard() {
     }, []);
 
     useEffect(() => {
-        // Fetch real-time prices for positions
-        const tickers = Object.keys(positions);
+        // Fetch real-time prices for positions + favourites
+        const tickers = [...new Set([...Object.keys(positions), ...favouriteTickers])];
         if (tickers.length === 0) return;
 
         fetch('/.netlify/functions/getLatestPrices', {
@@ -64,17 +59,22 @@ function BursaDashboard() {
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
-                    const newPrices = {};
+                    const newUpdates = {};
                     data.forEach(p => {
                         if (p && p.close) {
-                            newPrices[p.ticker] = p.close;
+                            newUpdates[p.ticker] = {
+                                close: p.close,
+                                isLivePrice: true,
+                                // Preserve any existing score/alignment from live analysis if available
+                                ...(liveUpdates[p.ticker] || {})
+                            };
                         }
                     });
-                    setLivePrices(newPrices);
+                    setLiveUpdates(prev => ({ ...prev, ...newUpdates }));
                 }
             })
             .catch(e => console.error("Error fetching live prices for bursa dashboard:", e));
-    }, [positions]);
+    }, [positions, favouriteTickers]);
 
     const syncBursaMaster = async () => {
         setIsSyncing(true);
@@ -144,7 +144,10 @@ function BursaDashboard() {
         }
     };
 
-    const rawResults = localResults || (Array.isArray(results) ? results : []);
+    const rawResults = (Array.isArray(results) ? results : []).map(s => {
+        const update = liveUpdates[s.ticker];
+        return update ? { ...s, ...update } : s;
+    });
     const resultsArray = rawResults.filter(s => s && (s.market === 'MYR' || s.market === 'KLSE'));
 
     const filteredResults = [...resultsArray]
@@ -214,7 +217,7 @@ function BursaDashboard() {
         const liveStock = resultsArray.find(r => r.ticker === pos.ticker);
         if (!liveStock) return null;
 
-        const currentPrice = livePrices[pos.ticker] || liveStock.close || 0;
+        const currentPrice = liveStock.close || 0;
         const pl = currentPrice - (pos.entryPrice || 0);
         const plPercent = pos.entryPrice > 0 ? (pl / pos.entryPrice) * 100 : 0;
 
@@ -231,6 +234,8 @@ function BursaDashboard() {
     const totalPositions = portfolioList.length;
     const greenPositions = portfolioList.filter(p => p.pl > 0).length;
     const avgPL = totalPositions > 0 ? portfolioList.reduce((acc, p) => acc + p.plPercent, 0) / totalPositions : 0;
+    const totalCapital = portfolioList.reduce((acc, p) => acc + (p.quantity * p.entryPrice), 0);
+    const totalPL = portfolioList.reduce((acc, p) => acc + (p.pl * p.quantity), 0);
 
     return (
         <div className="min-h-screen bg-background text-text-primary font-sans p-6 md:p-12 pb-24">
@@ -313,7 +318,14 @@ function BursaDashboard() {
                         <h3 className="text-2xl font-black text-white group-hover:text-emerald-400 transition-colors">{topRebound ? topRebound.company : 'Mencari Peluang...'}</h3>
                         {topRebound && (
                             <div className="mt-2 flex items-center gap-2">
-                                <span className="px-2 py-0.5 bg-emerald-500/20 rounded text-[10px] font-bold text-emerald-400">SKOR: {topRebound.score}</span>
+                                <span className={`
+                                    px-2 py-0.5 rounded text-[10px] font-bold transition-all
+                                    ${topRebound.isLivePrice
+                                        ? 'bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)]'
+                                        : 'bg-emerald-500/20 text-emerald-400'}
+                                `}>
+                                    SKOR: {topRebound.score} {topRebound.isLivePrice ? '(LIVE)' : ''}
+                                </span>
                                 <span className="text-[10px] text-gray-500 font-medium">Beli masa pullback.</span>
                             </div>
                         )}
@@ -332,7 +344,14 @@ function BursaDashboard() {
                         <h3 className="text-2xl font-black text-white group-hover:text-orange-400 transition-colors">{topMomentum ? topMomentum.company : 'Mencari Shark...'}</h3>
                         {topMomentum && (
                             <div className="mt-2 flex items-center gap-2">
-                                <span className="px-2 py-0.5 bg-orange-500/20 rounded text-[10px] font-bold text-orange-400">SKOR: {topMomentum.momentumScore}</span>
+                                <span className={`
+                                    px-2 py-0.5 rounded text-[10px] font-bold transition-all
+                                    ${topMomentum.isLivePrice
+                                        ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(249,115,22,0.4)]'
+                                        : 'bg-orange-500/20 text-orange-400'}
+                                `}>
+                                    SKOR: {topMomentum.momentumScore} {topMomentum.isLivePrice ? '(LIVE)' : ''}
+                                </span>
                                 <span className="text-[10px] text-gray-500 font-medium">Breakout sedang berlaku.</span>
                             </div>
                         )}
@@ -347,6 +366,9 @@ function BursaDashboard() {
                 greenPositions={greenPositions}
                 portfolioList={portfolioList}
                 onSelectStock={handleSelectStock}
+                totalCapital={totalCapital}
+                totalPL={totalPL}
+                market="MYR"
             />
 
             {/* Tab Switcher */}
@@ -506,21 +528,14 @@ function BursaDashboard() {
                     onRemovePosition={removePosition}
                     onSellPosition={sellPosition}
                     onStockUpdate={(ticker, updatedStock) => {
-                        setLocalResults(prev => {
-                            const base = prev || (Array.isArray(results) ? results : []);
-                            return base.map(s => {
-                                if (s.ticker === ticker) {
-                                    return {
-                                        ...s,
-                                        ...updatedStock,
-                                        originalScore: s.originalScore || s.score,
-                                        originalMomentumScore: s.originalMomentumScore || s.momentumScore,
-                                        isLivePrice: true
-                                    };
-                                }
-                                return s;
-                            });
-                        });
+                        setLiveUpdates(prev => ({
+                            ...prev,
+                            [ticker]: {
+                                ...updatedStock,
+                                originalScore: updatedStock.originalScore || updatedStock.score,
+                                isLivePrice: true
+                            }
+                        }));
                         setSelectedStock(prev => prev?.ticker === ticker ? { ...prev, ...updatedStock, isLivePrice: true } : prev);
                     }}
                 />

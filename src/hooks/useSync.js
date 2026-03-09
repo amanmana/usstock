@@ -98,8 +98,26 @@ export function useSync() {
 
     const runCompute = async () => {
         try {
-            const { data } = await axios.post(`${API_URL}/computeScreener`);
-            log(`Computed ${data.count} results.`);
+            const COMPUTE_BATCH_SIZE = 50;
+            let offset = 0;
+            let total = 1; // Initial value to enter loop
+
+            while (offset < total) {
+                log(`Computing signals... (${offset}/${total > 1 ? total : '?'})`);
+                const { data } = await axios.post(`${API_URL}/computeScreener`, {
+                    offset,
+                    limit: COMPUTE_BATCH_SIZE
+                });
+
+                if (data.status === 'no_more_stocks' || data.count === 0) break;
+
+                total = data.total || 0;
+                offset += data.count || COMPUTE_BATCH_SIZE;
+
+                if (data.status === 'complete') break;
+            }
+
+            log(`Computation complete.`);
         } catch (err) {
             throw new Error('Compute failed: ' + err.message);
         }

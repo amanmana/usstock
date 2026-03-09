@@ -265,7 +265,10 @@ export const analyzeIntraday = async (ticker, entryPrice, isOwned) => {
 
             if (latestInfo) {
                 const lastDay = history[history.length - 1];
-                if (lastDay.date === latestInfo.date) {
+                const lastDayDatePart = lastDay.date.split('T')[0];
+                const latestDatePart = latestInfo.date.split('T')[0];
+
+                if (lastDayDatePart === latestDatePart) {
                     history[history.length - 1] = { ...lastDay, ...latestInfo };
                 } else {
                     history.push(latestInfo);

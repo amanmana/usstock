@@ -6,9 +6,15 @@ export function PortfolioOverview({
     avgPL,
     greenPositions,
     portfolioList,
-    onSelectStock
+    onSelectStock,
+    totalCapital = 0,
+    totalPL = 0,
+    market = 'MYR'
 }) {
     if (totalPositions === 0) return null;
+
+    const currency = market === 'MYR' ? 'RM' : 'USD';
+    const currencySymbol = currency === 'RM' ? 'RM ' : '$';
 
     return (
         <div className="max-w-7xl mx-auto mb-10 animate-in slide-in-from-top duration-500">
@@ -23,12 +29,25 @@ export function PortfolioOverview({
                     </div>
                     <div>
                         <div className="text-[10px] text-gray-500 uppercase font-black tracking-[0.2em] mb-1">Portfolio Saya</div>
-                        <div className="text-2xl font-black text-white tracking-tighter">{totalPositions} Saham Pegangan</div>
+                        <div className="text-2xl font-black text-white tracking-tighter">{totalPositions} Saham</div>
+                        <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">Pegangan Semasa</div>
                     </div>
                 </div>
 
                 {/* Middle Section: Stats */}
                 <div className="flex items-center gap-12 flex-1">
+                    <div>
+                        <div className="text-[10px] text-gray-500 uppercase font-black tracking-[0.2em] mb-2">Total Modal</div>
+                        <div className="text-2xl font-black text-white tracking-tighter">
+                            {currencySymbol}{totalCapital.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-[10px] text-gray-500 uppercase font-black tracking-[0.2em] mb-2">Total P/L</div>
+                        <div className={`text-2xl font-black tracking-tighter ${totalPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {totalPL >= 0 ? '+' : ''}{currencySymbol}{totalPL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                    </div>
                     <div>
                         <div className="text-[10px] text-gray-500 uppercase font-black tracking-[0.2em] mb-2">Purata P/L</div>
                         <div className={`text-3xl font-black flex items-center gap-2 tracking-tighter ${avgPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -68,8 +87,13 @@ export function PortfolioOverview({
                                     : 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20 hover:border-red-500/40'}
                             `}
                         >
-                            <span className="text-xs uppercase tracking-tighter mb-0.5 group-hover/chip:text-white transition-colors">{pos.ticker.split('.')[0]}</span>
-                            <span className={`text-[10px] ${pos.plPercent >= 0 ? 'text-emerald-500' : 'text-red-500'} font-bold`}>
+                            <span className="text-xs uppercase tracking-tighter mb-0.5 group-hover/chip:text-white transition-colors">
+                                {pos.ticker.split('.')[0]}
+                                <span className="text-[9px] text-gray-500/80 font-bold ml-1">
+                                    {pos.ticker.endsWith('.KL') ? `(${pos.quantity / 100} L)` : `(${pos.quantity} U)`}
+                                </span>
+                            </span>
+                            <span className={`text-[10px] ${pos.plPercent >= 0 ? 'text-emerald-400' : 'text-red-400'} font-black`}>
                                 {pos.plPercent >= 0 ? '+' : ''}{Number(pos.plPercent).toFixed(1)}%
                             </span>
                         </button>

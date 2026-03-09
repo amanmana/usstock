@@ -25,6 +25,7 @@ import { StockModal } from '../components/StockModal';
 import { StockSearch } from '../components/StockSearch';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
+import { PortfolioOverview } from '../components/PortfolioOverview';
 
 function Dashboard() {
   const { results, loading, error, lastUpdated, refetch } = useScreener();
@@ -62,8 +63,8 @@ function Dashboard() {
   }, []);
 
   useEffect(() => {
-    // Fetch real-time prices for positions
-    const tickers = Object.keys(positions);
+    // Fetch real-time prices for positions + favourites
+    const tickers = [...new Set([...Object.keys(positions), ...favouriteTickers])];
     if (tickers.length === 0) return;
 
     fetch('/.netlify/functions/getLatestPrices', {
@@ -84,7 +85,7 @@ function Dashboard() {
         }
       })
       .catch(e => console.error("Error fetching live prices for dashboard:", e));
-  }, [positions]);
+  }, [positions, favouriteTickers]);
 
   const handleModeToggle = async (mode) => {
     // This function is now a no-op as we enforce 'real'
@@ -95,7 +96,22 @@ function Dashboard() {
   const forceRecompute = async () => {
     setIsAnalyzing(true);
     try {
-      await fetch(`/.netlify/functions/computeScreener?useMock=false`);
+      const BATCH_SIZE = 50;
+      let offset = 0;
+      let total = 1;
+
+      while (offset < total) {
+        const res = await fetch(`/.netlify/functions/computeScreener`, {
+          method: 'POST',
+          body: JSON.stringify({ offset, limit: BATCH_SIZE, useMock: false })
+        });
+        const data = await res.json();
+        if (data.status === 'no_more_stocks' || data.count === 0) break;
+        total = data.total || 0;
+        offset += data.count || BATCH_SIZE;
+        if (data.status === 'complete') break;
+      }
+
       refetch('shariah_top300_real');
     } catch (e) {
       console.error(e);
@@ -167,6 +183,8 @@ function Dashboard() {
   const totalPositions = portfolioList.length;
   const greenPositions = portfolioList.filter(p => p.pl > 0).length;
   const avgPL = totalPositions > 0 ? portfolioList.reduce((acc, p) => acc + p.plPercent, 0) / totalPositions : 0;
+  const totalCapital = portfolioList.reduce((acc, p) => acc + (p.quantity * p.entryPrice), 0);
+  const totalPL = portfolioList.reduce((acc, p) => acc + (p.pl * p.quantity), 0);
 
   // Calculate Top Picks
   const topRebound = (resultsArray || [])
@@ -372,60 +390,16 @@ function Dashboard() {
       </div>
 
       {/* Portfolio Overview Bar */}
-      {totalPositions > 0 && (
-        <div className="max-w-7xl mx-auto mb-8 animate-in slide-in-from-top duration-500">
-          <div className="bg-gradient-to-r from-surfaceHighlight/50 to-surfaceHighlight/20 border border-border rounded-2xl p-4 flex flex-wrap items-center gap-6 shadow-xl">
-            <div className="flex items-center gap-3 pr-6 border-r border-border/50">
-              <div className="p-2.5 bg-primary/20 rounded-xl">
-                <Briefcase className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <div className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Portfolio Saya</div>
-                <div className="text-sm font-bold text-white">{totalPositions} Saham Pegangan</div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-8 flex-1">
-              <div>
-                <div className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1">Purata P/L</div>
-                <div className={`text-lg font-black flex items-center gap-2 ${avgPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {avgPL >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  {Number(avgPL).toFixed(2)}%
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1">Status</div>
-                <div className="flex items-center gap-1.5">
-                  <span className="flex h-2 w-2 rounded-full bg-emerald-500"></span>
-                  <span className="text-xs font-bold text-gray-300">{greenPositions} Untung</span>
-                  <span className="text-gray-600 mx-1">/</span>
-                  <span className="text-xs font-bold text-gray-500">{totalPositions - greenPositions} Rugi</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 flex-wrap ml-auto py-1">
-              {portfolioList.map(pos => (
-                <button
-                  key={pos.ticker}
-                  onClick={() => handleSelectStock(pos.fullData)}
-                  className={`
-                        px-3 py-1.5 rounded-lg border text-[10px] font-black transition-all hover:scale-105 active:scale-95
-                        ${pos.pl >= 0
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]'
-                      : 'bg-red-500/10 border-red-500/30 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.1)]'}
-                      `}
-                >
-                  {pos.company}
-                  <span className="block text-[8px] opacity-70">
-                    {pos.plPercent >= 0 ? '+' : ''}{Number(pos.plPercent).toFixed(1)}%
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <PortfolioOverview
+        totalPositions={totalPositions}
+        avgPL={avgPL}
+        greenPositions={greenPositions}
+        portfolioList={portfolioList}
+        onSelectStock={handleSelectStock}
+        totalCapital={totalCapital}
+        totalPL={totalPL}
+        market="USD"
+      />
 
       {/* Tab Switcher */}
       <div className="max-w-7xl mx-auto mb-6 flex gap-2 p-1 bg-surfaceHighlight/30 rounded-xl border border-border w-fit backdrop-blur-md">

@@ -18,7 +18,7 @@ export const handler = async (event) => {
         // 1. Get all tickers with any alert enabled
         const { data: monitored, error: fetchErr } = await supabase
             .from('favourites')
-            .select('*')
+            .select('*, klse_stocks(company_name)')
             .eq('is_active', true)
             .or('alert_go.eq.true,alert_tp.eq.true,alert_sl.eq.true');
 
@@ -102,8 +102,9 @@ export const handler = async (event) => {
                 // --- SIGNAL GO ALERT ---
                 if (item.alert_go && currentVerdict === "GO" && item.last_alert_status !== "GO") {
                     console.log(`ALERT: ${ticker} hit GO!`);
+                    const company = item.klse_stocks?.company_name || ticker;
                     const currency = item.market === 'MYR' || item.market === 'KLSE' ? 'RM' : '$';
-                    const message = `🚀 *SIGNAL GO: ${ticker}*\n\n` +
+                    const message = `🚀 *SIGNAL GO: ${company} (${ticker})*\n\n` +
                         `💹 *Price*: ${currency} ${currentPrice.toFixed(3)}\n` +
                         `🎯 *Target*: ${currency} ${result.levels.target1.toFixed(3)}\n` +
                         `🛡️ *Stop*: ${currency} ${result.levels.stopPrice.toFixed(3)}\n` +
@@ -118,10 +119,11 @@ export const handler = async (event) => {
                 if (item.alert_tp && pos && pos.target_price > 0 && currentPrice >= pos.target_price) {
                     // Only alert if we haven't alerted for this price yet (or if price has reset)
                     if (item.last_tp_price !== currentPrice) {
+                        const company = item.klse_stocks?.company_name || ticker;
                         const currency = item.market === 'MYR' || item.market === 'KLSE' ? 'RM' : '$';
                         console.log(`ALERT: ${ticker} hit TP!`);
                         const pl = ((currentPrice - pos.entry_price) / pos.entry_price * 100).toFixed(2);
-                        const message = `🎯 *TARGET REACHED (TP): ${ticker}*\n\n` +
+                        const message = `🎯 *TARGET REACHED (TP): ${company} (${ticker})*\n\n` +
                             `💰 *Sell Price*: ${currency} ${currentPrice.toFixed(3)}\n` +
                             `📈 *Profit*: +${pl}%\n` +
                             `📝 *Plan*: Target ${currency} ${pos.target_price.toFixed(3)}\n\n` +
@@ -135,10 +137,11 @@ export const handler = async (event) => {
                 // --- STOP LOSS (SL) ALERT ---
                 if (item.alert_sl && pos && pos.stop_loss > 0 && currentPrice <= pos.stop_loss) {
                     if (item.last_sl_price !== currentPrice) {
+                        const company = item.klse_stocks?.company_name || ticker;
                         const currency = item.market === 'MYR' || item.market === 'KLSE' ? 'RM' : '$';
                         console.log(`ALERT: ${ticker} hit SL!`);
                         const pl = ((currentPrice - pos.entry_price) / pos.entry_price * 100).toFixed(2);
-                        const message = `🛡️ *STOP LOSS HIT: ${ticker}*\n\n` +
+                        const message = `🛡️ *STOP LOSS HIT: ${company} (${ticker})*\n\n` +
                             `🚨 *Price*: ${currency} ${currentPrice.toFixed(3)}\n` +
                             `📉 *Loss*: ${pl}%\n` +
                             `📝 *Plan*: SL ${currency} ${pos.stop_loss.toFixed(3)}\n\n` +

@@ -131,21 +131,28 @@ export const handler = async (event, context) => {
             // This prevents duplicate entries with different alpha-based symbols.
             const tickerFull = `${tickerCode}.KL`;
 
-            // Ticker Overrides for Stability
-            const TICKER_OVERRIDES = {
-                'MHB.KL': { tc: '5186', cn: 'MALAYSIA MARINE AND HEAVY ENG' },
-                'KSL.KL': { tc: '5038', cn: 'KSL HOLDINGS BHD' }
+            // Ticker Overrides — keyed by SHORT NAME (alpha code) to handle
+            // cases where The Star uses alpha codes but Yahoo Finance needs numeric.
+            // These are PERMANENT overrides — update here if Bursa changes codes.
+            const TICKER_OVERRIDES_BY_SHORT = {
+                'MHB': { tc: '5186', yfFull: '5186.KL', cn: 'MALAYSIA MARINE AND HEAVY ENG' },
+                'KSL': { tc: '0168', yfFull: '0168.KL', cn: 'KSL HOLDINGS BHD' },
+                'SOP': { tc: '5126', yfFull: '5126.KL', cn: 'SARAWAK OIL PALMS BHD' },
+                'YFG': { tc: '7293', yfFull: '7293.KL', cn: 'YFG BHD' },
             };
 
-            const finalTickerCode = TICKER_OVERRIDES[tickerFull]?.tc || tickerCode;
-            const finalCompanyName = TICKER_OVERRIDES[tickerFull]?.cn || companyName;
+            const override = TICKER_OVERRIDES_BY_SHORT[tickerShort];
+            const finalTickerCode = override?.tc || tickerCode;
+            const finalCompanyName = override?.cn || companyName;
+            // If override exists, use the numeric-based ticker_full for Yahoo Finance
+            const finalTickerFull = override?.yfFull || tickerFull;
 
             if (tickerShort === 'MHB') {
-                console.log('MHB Upsert Data:', { tickerFull, finalTickerCode, finalCompanyName });
+                console.log('MHB Upsert Data:', { finalTickerFull, finalTickerCode, finalCompanyName });
             }
 
             upserts.push({
-                ticker_full: tickerFull,
+                ticker_full: finalTickerFull,
                 ticker_code: finalTickerCode,
                 company_name: finalCompanyName,
                 short_name: tickerShort,
@@ -163,24 +170,59 @@ export const handler = async (event, context) => {
         }
 
         // 4. Batch upsert into klse_stocks
+        // IMPORTANT: Split into "locked" (override tickers) vs "normal" upserts.
+        // Locked tickers must NOT have their ticker_code overwritten by sync data,
+        // because their numeric code was manually corrected in DB.
+        const LOCKED_TICKERS = new Set(Object.keys(TICKER_OVERRIDES_BY_SHORT));
+
+        // Wait — TICKER_OVERRIDES_BY_SHORT is defined inside the loop above.
+        // Re-define here for use in upsert split:
+        const OVERRIDE_SHORT_NAMES = new Set(['MHB', 'KSL', 'SOP', 'YFG']);
+
+        const lockedUpserts = upserts.filter(u => OVERRIDE_SHORT_NAMES.has(u.short_name));
+        const normalUpserts = upserts.filter(u => !OVERRIDE_SHORT_NAMES.has(u.short_name));
+
         const chunkSize = 200;
         let successCount = 0;
         let errorCount = 0;
 
-        for (let i = 0; i < upserts.length; i += chunkSize) {
-            const chunk = upserts.slice(i, i + chunkSize);
+        // Normal upsert — overwrite all fields (standard sync behaviour)
+        for (let i = 0; i < normalUpserts.length; i += chunkSize) {
+            const chunk = normalUpserts.slice(i, i + chunkSize);
             const { error } = await supabase
                 .from('klse_stocks')
                 .upsert(chunk, {
                     onConflict: 'ticker_full',
                     ignoreDuplicates: false
                 });
-
             if (error) {
                 console.error('Chunk upsert error:', error.message);
                 errorCount += chunk.length;
             } else {
                 successCount += chunk.length;
+            }
+        }
+
+        // Locked upsert — only update safe fields, NEVER ticker_code
+        // Use individual updates via .update() to avoid touching ticker_code
+        for (const row of lockedUpserts) {
+            const { error } = await supabase
+                .from('klse_stocks')
+                .update({
+                    company_name: row.company_name,
+                    short_name: row.short_name,
+                    is_active: row.is_active,
+                    source_origin: row.source_origin,
+                    market: row.market
+                    // ticker_code intentionally NOT updated here
+                })
+                .eq('ticker_full', row.ticker_full);
+
+            if (error) {
+                console.error(`Locked upsert error for ${row.ticker_full}:`, error.message);
+                errorCount++;
+            } else {
+                successCount++;
             }
         }
 

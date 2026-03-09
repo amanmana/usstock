@@ -35,10 +35,10 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
     let rrRatio = null;
     let rrNote = "Missing price levels";
     if (entry && stopPrice && entry > stopPrice) {
-        const target = tp2 || tp1; // Priority TP2 for full reward potential
+        const target = tp1; // Use TP1 for conservative Risk/Reward assessment as per user request
         if (target && target > entry) {
             rrRatio = (target - entry) / (entry - stopPrice);
-            rrNote = rrRatio >= 2.0 ? "High RR Advantage" : `Weak RR (${rrRatio.toFixed(2)})`;
+            rrNote = rrRatio >= 2.0 ? "High RR Advantage (TP1)" : `Weak RR TP1 (${rrRatio.toFixed(2)})`;
         } else {
             rrNote = "Invalid target price";
         }
@@ -118,20 +118,22 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
         // Double Go Trigger
         const isMTFAligned = confirmedCount === totalCount && totalCount >= 2;
         const isHighConviction = score >= 8.0;
-        const isSomeAlignment = confirmedCount >= 1;
+        const isMTFConfirmed = confirmedCount >= 2;
+        const isEliteScore = score >= 8.5 && confirmedCount >= 1;
 
         if (isMTFAligned && isHighConviction && rrRatio >= 2.0) {
             verdictLabel = "DOUBLE GO";
             advice = "SAH: DOUBLE GO! Semua parameter (MTF, Setup, RR) dalam keadaan sempurna.";
-        } else if (isSomeAlignment || score >= 7.5) {
+        } else if (isMTFConfirmed || isEliteScore) {
             verdictLabel = "GO";
             advice = "PELUANG ENTRY: Syarat teknikal dipenuhi. Sesuai untuk beli mengikut strategi.";
         } else {
-            // Price is in setup zone but momentum is still 0/3 or score is low
+            // Price is in setup zone but momentum is still 0/3 or weak 1/3
             verdictLabel = "WAIT";
+            const momentumDesc = confirmedCount === 0 ? "masih bearish" : "baru bermula (spekulatif)";
             advice = isPullback
-                ? "TUNGGU (WAIT): Harga berada dalam zon 'Pullback' TAPI momentum intraday masih bearish. Tunggu isyarat reversal (lilin hijau) sebelum masuk."
-                : "TUNGGU (WAIT): Menunggu pengesahan momentum intraday untuk menyokong setup breakout.";
+                ? `TUNGGU (WAIT): Harga dalam zon 'Pullback' TAPI momentum ${momentumDesc}. Tunggu pengesahan 2/3 Aligned.`
+                : `TUNGGU (WAIT): Menunggu pengesahan momentum intraday (2/3) untuk menyokong setup breakout.`;
         }
     } else {
         verdictLabel = "WAIT";

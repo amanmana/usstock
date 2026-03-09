@@ -27,7 +27,7 @@ const FavouritesPage = () => {
         refetch('universe_all_real');
     }, []);
     const { favouriteTickers, favouriteDetails, toggleFavourite, toggleAlert, addCustomFavourite, loadingFavs } = useFavourites();
-    const { positions, addPosition, removePosition } = usePositions();
+    const { positions, addPosition, removePosition, sellPosition } = usePositions();
 
     const [showAddModal, setShowAddModal] = useState(false);
     const [newSymbol, setNewSymbol] = useState('');
@@ -43,9 +43,10 @@ const FavouritesPage = () => {
     const [latestPrices, setLatestPrices] = useState({}); // Ticker -> { close, volume, updatedAt }
     const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
     const [pricesUpdatedAt, setPricesUpdatedAt] = useState(null);
+    const [nextUpdateIn, setNextUpdateIn] = useState(300); // Countdown in seconds
 
     const fetchLatestPrices = async (tickers) => {
-        if (!tickers || tickers.length === 0) return;
+        if (!tickers || tickers.length === 0 || isRefreshingPrices) return;
         setIsRefreshingPrices(true);
         try {
             const res = await fetch('/.netlify/functions/getLatestPrices', {
@@ -65,6 +66,7 @@ const FavouritesPage = () => {
                 });
                 setLatestPrices(prev => ({ ...prev, ...priceMap }));
                 setPricesUpdatedAt(new Date());
+                setNextUpdateIn(300); // Reset countdown on success
             }
         } catch (e) {
             console.error("Error fetching latest prices:", e);
@@ -80,14 +82,20 @@ const FavouritesPage = () => {
         }
     }, [favouriteTickers.length]);
 
-    // Polling every 5 minutes
+    // Countdown and Polling Logic combined
     React.useEffect(() => {
-        const interval = setInterval(() => {
-            if (favouriteTickers.length > 0) {
-                fetchLatestPrices(favouriteTickers);
-            }
-        }, 5 * 60 * 1000); // 5 minutes
-        return () => clearInterval(interval);
+        const timer = setInterval(() => {
+            setNextUpdateIn((prev) => {
+                if (prev <= 1) {
+                    if (favouriteTickers.length > 0) {
+                        fetchLatestPrices(favouriteTickers);
+                    }
+                    return 300;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(timer);
     }, [favouriteTickers]);
 
     // 1. Get unique stocks only (to avoid duplicates from aliases like 5080 and 5080.KL)
@@ -264,9 +272,11 @@ const FavouritesPage = () => {
                     {favouriteTickers.length > 0 && (
                         <div className="flex items-center gap-4 bg-surfaceHighlight/30 border border-border px-6 py-4 rounded-2xl shrink-0">
                             <div className="text-right">
-                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none mb-1">Status Harga</div>
+                                <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1 shadow-sm">
+                                    Next Sync in {Math.floor(nextUpdateIn / 60)}:{(nextUpdateIn % 60).toString().padStart(2, '0')}
+                                </div>
                                 <div className="flex items-center gap-2">
-                                    <Clock className="w-3.5 h-3.5 text-gray-500" />
+                                    <Clock className="w-3.5 h-3.5 text-primary" />
                                     <span className="text-xs text-white font-bold">
                                         {pricesUpdatedAt ? `Kemaskini: ${pricesUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Sedang mengambil...'}
                                     </span>
@@ -275,10 +285,13 @@ const FavouritesPage = () => {
                             <button
                                 onClick={() => fetchLatestPrices(favouriteTickers)}
                                 disabled={isRefreshingPrices}
-                                className={`p-3 rounded-xl transition-all ${isRefreshingPrices ? 'bg-primary/20 text-primary animate-spin' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'}`}
+                                className={`p-3 rounded-xl transition-all relative overflow-hidden group ${isRefreshingPrices ? 'bg-primary/20 text-primary' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'}`}
                                 title="Refresh Prices Now"
                             >
-                                <RefreshCw className={`w-5 h-5 ${isRefreshingPrices ? 'animate-spin' : ''}`} />
+                                <RefreshCw className={`w-5 h-5 relative z-10 ${isRefreshingPrices ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+                                {isRefreshingPrices && (
+                                    <div className="absolute inset-0 bg-primary/20 animate-pulse"></div>
+                                )}
                             </button>
                         </div>
                     )}
@@ -344,6 +357,8 @@ const FavouritesPage = () => {
                         positions={positions}
                         activeTab={activeTab === 'US' ? 'hybrid' : 'bursa'}
                         market={activeTab === 'US' ? 'USD' : 'MYR'}
+                        variant="monitor"
+                        loading={isRefreshingPrices}
                     />
                 )}
 
@@ -507,6 +522,7 @@ const FavouritesPage = () => {
                         positions={positions}
                         onSavePosition={addPosition}
                         onRemovePosition={removePosition}
+                        onSellPosition={sellPosition}
                         onStockUpdate={(ticker, updatedStock) => {
                             setLocalResults(prev => ({
                                 ...prev,

@@ -7,8 +7,11 @@ import { getComputeUniverse } from './utils/universe.js';
  * Stores results in cache, tagged with metadata to allow UI filtering.
  */
 export const handler = async (event, context) => {
-    const useMock = event.queryStringParameters?.useMock === 'true';
-    const targetMarket = event.queryStringParameters?.market; // 'MYR' or 'US'
+    const useMock = event.queryStringParameters?.useMock === 'true' || (event.body ? JSON.parse(event.body).useMock === 'true' : false);
+    const targetMarket = event.queryStringParameters?.market || (event.body ? JSON.parse(event.body).market : null); // 'MYR' or 'US'
+    const offset = parseInt(event.queryStringParameters?.offset || (event.body ? JSON.parse(event.body).offset : 0));
+    const limit = parseInt(event.queryStringParameters?.limit || (event.body ? JSON.parse(event.body).limit : 1000));
+    const isFirstBatch = offset === 0;
     const mode = useMock ? 'hybrid' : 'real';
 
     // Determine Cache Key based on market
@@ -29,7 +32,16 @@ export const handler = async (event, context) => {
             }
         }
 
-        if (stocks.length === 0) return { statusCode: 200, body: `No stocks found for market ${targetMarket}` };
+        // Apply pagination
+        const totalStocksInUniverse = stocks.length;
+        stocks = stocks.slice(offset, offset + limit);
+
+        if (stocks.length === 0) {
+            return {
+                statusCode: 200,
+                body: JSON.stringify({ count: 0, status: 'no_more_stocks', total: totalStocksInUniverse })
+            };
+        }
 
         // 3. Fetch Top 300 IDs to tag them
         const { data: top300Data } = await supabase.from('klse_stocks').select('ticker_full').eq('is_top300', true);
@@ -41,7 +53,7 @@ export const handler = async (event, context) => {
         const results = [];
         const tickerList = stocks.map(s => s.ticker_full);
 
-        // 4. Fetch all prices in bulk
+        // 4. Fetch all prices in bulk for THIS BATCH ONLY
         const allPrices = [];
         let from = 0;
         const step = 1000;
@@ -66,8 +78,7 @@ export const handler = async (event, context) => {
             } else {
                 moreData = false;
             }
-
-            if (from > 300000) break; // Higher cap for safety
+            if (from > 50000) break; // Safety cap per batch
         }
 
         const priceMap = {};
@@ -76,7 +87,7 @@ export const handler = async (event, context) => {
             priceMap[p.ticker_full].push(p);
         });
 
-        // 5. Analyze
+        // 5. Analyze Batch
         for (const stock of stocks) {
             const prices = priceMap[stock.ticker_full];
             if (!prices || prices.length < 2) continue;
@@ -113,33 +124,65 @@ export const handler = async (event, context) => {
             }
         }
 
-        results.sort((a, b) => b.score - a.score);
         const today = new Date().toISOString().split('T')[0];
 
-        // 6. Update Cache
-        // If it's a market-specific run, we only update that specific cache.
-        // If it's 'all', we update everything (legacy support).
+        // 6. Update Cache (Batch Mode)
         const keys = targetMarket ? [cacheKey] : [cacheKey, 'shariah_top300_real', 'shariah_top300_hybrid'];
 
         for (const key of keys) {
-            await supabase.from('screener_results_cache')
-                .delete()
-                .eq('as_of_date', today)
-                .eq('universe', key);
+            if (isFirstBatch) {
+                // Clear and Insert
+                await supabase.from('screener_results_cache')
+                    .delete()
+                    .eq('as_of_date', today)
+                    .eq('universe', key);
 
-            await supabase
-                .from('screener_results_cache')
-                .insert({
-                    as_of_date: today,
-                    results_json: results,
-                    min_score: 0,
-                    universe: key
-                });
+                if (offset + limit >= totalStocksInUniverse) {
+                    results.sort((a, b) => (b.score || 0) - (a.score || 0));
+                }
+
+                await supabase
+                    .from('screener_results_cache')
+                    .insert({
+                        as_of_date: today,
+                        results_json: results,
+                        min_score: 0,
+                        universe: key
+                    });
+            } else {
+                // Append using RPC or atomic update
+                // Since we don't have a reliable RPC for appending to jsonb array easily, 
+                // we'll fetch-modify-write for now, or just use a raw query if possible.
+                const { data: current } = await supabase.from('screener_results_cache')
+                    .select('results_json')
+                    .eq('as_of_date', today)
+                    .eq('universe', key)
+                    .single();
+
+                const existingResults = (current && Array.isArray(current.results_json)) ? current.results_json : [];
+                const merged = [...existingResults, ...results];
+
+                // Optional: Sort at the end (client usually sorts anyway)
+                if (offset + limit >= totalStocksInUniverse) {
+                    merged.sort((a, b) => (b.score || 0) - (a.score || 0));
+                }
+
+                await supabase.from('screener_results_cache')
+                    .update({ results_json: merged })
+                    .eq('as_of_date', today)
+                    .eq('universe', key);
+            }
         }
 
         return {
             statusCode: 200,
-            body: JSON.stringify({ count: results.length, status: 'computed', market: targetMarket || 'ALL' })
+            body: JSON.stringify({
+                count: results.length,
+                offset,
+                processed: offset + stocks.length,
+                total: totalStocksInUniverse,
+                status: (offset + stocks.length >= totalStocksInUniverse) ? 'complete' : 'batch_done'
+            })
         };
 
     } catch (err) {

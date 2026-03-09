@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, TrendingUp, TrendingDown, BarChart2, ExternalLink, Heart, CheckCircle, Loader2, Info, AlertOctagon, Activity, RefreshCw, Bell, BellOff, Zap, Target, Clock } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import StockChart from './StockChart';
 import { PositionManager } from './PositionManager';
 import { mapAnalysisToTradePlan } from '../lib/tradePlanMapper';
@@ -571,9 +571,32 @@ export function StockModal({
                                         </span>
                                     </div>
                                     <div className="flex flex-col">
+                                        <span className="text-[8px] text-gray-500 font-black uppercase tracking-widest">{isBursa ? 'Jumlah Lot' : 'Quantity'}</span>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-xs text-white font-bold">
+                                                {isBursa ? (pos.quantity / 100).toLocaleString() : pos.quantity.toLocaleString()}
+                                            </span>
+                                            {isBursa && <span className="text-[10px] text-gray-500 font-bold uppercase">Lots</span>}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col">
                                         <span className="text-[8px] text-gray-500 font-black uppercase tracking-widest">Entry</span>
                                         <span className="text-xs text-white font-bold">{currency} {pos.entryPrice.toFixed(3)}</span>
                                     </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[8px] text-gray-500 font-black uppercase tracking-widest">Modal ({currency})</span>
+                                        <span className="text-xs text-white/90 font-bold">
+                                            {currencySymbol}{(pos.quantity * pos.entryPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                    </div>
+                                    {pos.buyDate && (
+                                        <div className="flex flex-col">
+                                            <span className="text-[8px] text-gray-500 font-black uppercase tracking-widest">Holding</span>
+                                            <span className="text-xs text-blue-400 font-bold">
+                                                {differenceInDays(new Date(), new Date(pos.buyDate))} Days
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -691,7 +714,17 @@ export function StockModal({
                                 recommendedStrategy={strategy}
                                 onSave={onSavePosition}
                                 onRemove={onRemovePosition}
-                                onSell={onSellPosition}
+                                onSell={(sellData) => {
+                                    if (!onSellPosition) return;
+                                    const pos = positions[stock.ticker];
+                                    return onSellPosition({
+                                        ...sellData,
+                                        ticker_full: stock.ticker_full || stock.ticker,
+                                        entry_price: pos?.entryPrice,
+                                        strategy: pos?.strategy,
+                                        buy_date: pos?.buyDate
+                                    });
+                                }}
                             />
 
                             {/* Automated Commentary Section */}
@@ -756,6 +789,44 @@ export function StockModal({
 
                         {/* Column 2: The Verdict (Action) */}
                         <div className="space-y-6">
+
+                            {/* Main Verdict Card - moved to top */}
+                            <div className={`p-6 rounded-3xl border shadow-2xl transition-all duration-500 ${plan.verdictLabel?.includes('GO') ? 'bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/10' : (plan.verdictLabel === 'AVOID' ? 'bg-red-500/10 border-red-500/20 shadow-red-500/10' : 'bg-primary/10 border-primary/20 shadow-primary/10')}`}>
+                                <div className="flex flex-col gap-6">
+                                    <div className="flex items-center gap-5">
+                                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-2xl transform rotate-3 ${plan.verdictLabel?.includes('GO') ? 'bg-emerald-500 text-white' : (plan.verdictLabel === 'AVOID' ? 'bg-red-500 text-white' : 'bg-primary text-white')}`}>
+                                            {plan.verdictLabel?.includes('GO') ? <TrendingUp className="w-8 h-8" /> : (plan.verdictLabel === 'AVOID' ? <TrendingDown className="w-8 h-8" /> : <Activity className="w-8 h-8" />)}
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">System Verdict</div>
+                                            <div className={`text-3xl font-black tracking-tighter ${plan.verdictLabel?.includes('GO') ? 'text-emerald-400' : (plan.verdictLabel === 'AVOID' ? 'text-red-400' : 'text-primary')}`}>
+                                                {plan.verdictLabel}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Action Advice */}
+                                    <div className="w-full">
+                                        <div className="bg-black/20 backdrop-blur-md rounded-2xl p-4 border border-white/5">
+                                            <div className="flex items-start gap-3">
+                                                <div className="mt-1">
+                                                    {plan.verdictLabel?.includes('GO') ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Info className="w-4 h-4 text-primary" />}
+                                                </div>
+                                                <div>
+                                                    <p className="text-[13px] font-bold text-white leading-relaxed">
+                                                        {plan.systemVerdictText || (plan.verdictLabel?.includes('GO') ? "Isyarat cukup syarat untuk entri mengikut strategi." : (plan.verdictLabel === 'AVOID' ? "Nisbah risiko-ganjaran tidak menarik. Lebihkan tunai." : "Isyarat belum cukup kuat untuk keputusan beli. Tunggu 'alignment' berlaku."))}
+                                                    </p>
+                                                    {plan.trade.strategyLabel && (
+                                                        <div className="mt-2 inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                                                            Strategy: {plan.trade.strategyLabel}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
                             {/* Recommendation Card */}
                             {(() => {
@@ -978,40 +1049,66 @@ export function StockModal({
                                             )}
                                         </div>
 
-                                        {/* Main Verdict Card */}
-                                        <div className={`p-6 rounded-3xl border shadow-2xl transition-all duration-500 ${plan.verdictLabel?.includes('GO') ? 'bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/10' : (plan.verdictLabel === 'AVOID' ? 'bg-red-500/10 border-red-500/20 shadow-red-500/10' : 'bg-primary/10 border-primary/20 shadow-primary/10')}`}>
-                                            <div className="flex flex-col gap-6">
-                                                <div className="flex items-center gap-5">
-                                                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-2xl transform rotate-3 ${plan.verdictLabel?.includes('GO') ? 'bg-emerald-500 text-white' : (plan.verdictLabel === 'AVOID' ? 'bg-red-500 text-white' : 'bg-primary text-white')}`}>
-                                                        {plan.verdictLabel?.includes('GO') ? <TrendingUp className="w-8 h-8" /> : (plan.verdictLabel === 'AVOID' ? <TrendingDown className="w-8 h-8" /> : <Activity className="w-8 h-8" />)}
+                                        {/* Quick Execution Summary Card - moved here */}
+                                        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-6 relative overflow-hidden group/exec animate-in fade-in slide-in-from-right-4 duration-700">
+                                            <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover/exec:opacity-[0.07] transition-opacity pointer-events-none rotate-12">
+                                                <Zap className="w-32 h-32 text-emerald-400" />
+                                            </div>
+                                            <div className="space-y-5">
+                                                <div className="flex items-center gap-2.5 pb-3 border-b border-white/5">
+                                                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                                                        <Zap className="w-4 h-4 text-emerald-400 fill-emerald-400/20" />
                                                     </div>
                                                     <div>
-                                                        <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">System Verdict</div>
-                                                        <div className={`text-3xl font-black tracking-tighter ${plan.verdictLabel?.includes('GO') ? 'text-emerald-400' : (plan.verdictLabel === 'AVOID' ? 'text-red-400' : 'text-primary')}`}>
-                                                            {plan.verdictLabel}
+                                                        <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Pelan Tindakan Segera</h3>
+                                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest leading-none">Quick Execution Summary</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-6">
+                                                    <div className="space-y-1.5 p-3 rounded-2xl bg-white/5 border border-white/5 group-hover/exec:border-emerald-500/10 transition-colors">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <TrendingUp className="w-3 h-3 text-gray-500" />
+                                                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Entry Range</span>
+                                                        </div>
+                                                        <div className="text-sm font-black text-white tracking-tight">
+                                                            {currency} {plan.trade.queuePrice?.toFixed(3) === plan.trade.entryPrice?.toFixed(3)
+                                                                ? (plan.trade.entryPrice?.toFixed(3) || '0.000')
+                                                                : `${plan.trade.queuePrice?.toFixed(3) || '0.000'} - ${plan.trade.entryPrice?.toFixed(3) || '0.000'}`
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-1.5 p-3 rounded-2xl bg-red-500/5 border border-red-500/5 group-hover/exec:border-red-500/10 transition-colors">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <AlertOctagon className="w-3 h-3 text-red-400/50" />
+                                                            <span className="text-[9px] font-bold text-red-400/50 uppercase tracking-widest">Stop Loss</span>
+                                                        </div>
+                                                        <div className="text-sm font-black text-red-400 tracking-tight">
+                                                            {currency} {plan.trade.stopLoss?.toFixed(3) || '0.000'} <span className="text-[10px]">&amp; BELOW</span>
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                {/* Action Advice */}
-                                                <div className="w-full">
-                                                    <div className="bg-black/20 backdrop-blur-md rounded-2xl p-4 border border-white/5">
-                                                        <div className="flex items-start gap-3">
-                                                            <div className="mt-1">
-                                                                {plan.verdictLabel?.includes('GO') ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Info className="w-4 h-4 text-primary" />}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[13px] font-bold text-white leading-relaxed">
-                                                                    {vDesc}
-                                                                </p>
-                                                                {plan.trade.strategyLabel && (
-                                                                    <div className="mt-2 inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] font-black text-gray-400 uppercase tracking-widest">
-                                                                        Strategy: {plan.trade.strategyLabel}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
+                                                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/10 group-hover/exec:border-emerald-500/30 transition-all">
+                                                    <div className="flex items-center gap-1.5 mb-2">
+                                                        <Target className="w-3 h-3 text-emerald-400" />
+                                                        <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Target Profit (TP1 / TP2)</span>
                                                     </div>
+                                                    <div className="text-lg font-black text-white tracking-tighter flex items-center justify-between">
+                                                        <span>{plan.trade.tp1?.toFixed(3)}</span>
+                                                        <span className="text-white/20">/</span>
+                                                        <span>{plan.trade.tp2?.toFixed(3)}</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between px-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <Clock className="w-3 h-3 text-blue-400" />
+                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Trade Duration</span>
+                                                    </div>
+                                                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.1em] px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                                                        1 - 20 Trading Days
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -1165,11 +1262,11 @@ export function StockModal({
                                     </div>
                                 </div>
                                 <div className="bg-black/20 rounded-xl p-4 border border-white/5 flex flex-col justify-center items-center text-center">
-                                    <div className="text-[10px] text-gray-500 uppercase font-black mb-2 tracking-widest">RR Ratio Status</div>
+                                    <div className="text-[10px] text-gray-500 uppercase font-black mb-2 tracking-widest text-emerald-500/80">RR (TP1) Status</div>
                                     <div className={`text-3xl font-black mb-1 ${(plan.trade?.rrRatio || stock.levels?.rr1 || 0) >= 2.0 ? 'text-emerald-400' : 'text-orange-400'}`}>
                                         {(plan.trade?.rrRatio || stock.levels?.rr1 || 0).toFixed(2)}
                                     </div>
-                                    <div className="text-[9px] text-gray-500 font-bold uppercase">Risk Reward Ratio</div>
+                                    <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest opacity-50">Risk Reward Ratio (TP1)</div>
                                 </div>
                             </div>
                         </div>

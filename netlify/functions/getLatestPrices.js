@@ -33,39 +33,56 @@ export const handler = async (event, context) => {
                 const sInfo = stockMap[ticker];
 
                 if (sInfo && (sInfo.market === 'MYR' || sInfo.market === 'KLSE')) {
-                    if (sInfo.ticker_code && /^\d+$/.test(sInfo.ticker_code)) {
-                        yfSymbol = `${sInfo.ticker_code}.KL`;
-                    } else if (!/^\d+\.KL$/.test(ticker)) {
-                        // Alpha symbol like MHB.KL - try to find numeric code in DB
-                        const { data: searchMatch } = await supabase
-                            .from('klse_stocks')
-                            .select('ticker_code')
-                            .ilike('company_name', `%${sInfo.company_name}%`)
-                            .not('ticker_code', 'ilike', '%KL%')
-                            .limit(1)
-                            .single();
+                    // Normalise ticker_code: strip any trailing .KL suffix (e.g. '5126.KL' → '5126')
+                    const rawCode = (sInfo.ticker_code || '').replace(/\.KL$/i, '');
 
-                        if (searchMatch && /^\d+$/.test(searchMatch.ticker_code)) {
-                            yfSymbol = `${searchMatch.ticker_code}.KL`;
-                            console.log(`Resolved alpha ${ticker} to numeric ${yfSymbol}`);
-                        } else {
-                            yfSymbol = ticker.endsWith('.KL') ? ticker : `${ticker}.KL`;
-                        }
+                    if (rawCode && /^\d+$/.test(rawCode)) {
+                        // Clean numeric code — use directly with .KL suffix
+                        yfSymbol = `${rawCode}.KL`;
+                    } else if (rawCode && /^0\d{3}PA$/i.test(rawCode)) {
+                        // Warrant/PA code — skip (Yahoo won't have it)
+                        yfSymbol = ticker; // let fetchStockData handle/fall back
+                    } else {
+                        // Alpha code (e.g. 'MHB.KL', 'KSL.KL') — use as-is and let
+                        // fetchStockData fall back to isaham.my if Yahoo returns nothing
+                        yfSymbol = ticker.endsWith('.KL') ? ticker : `${ticker.replace(/\.KL$/i, '')}.KL`;
                     }
                 }
 
                 // Fetch 3 months of daily data to compute RSI and scores
-                const history = await fetchIntradayData(yfSymbol, '1d', '3mo');
+                // PLUS fetch a live quote to ensure the current price is accurate
+                const [history, basic] = await Promise.all([
+                    fetchIntradayData(yfSymbol, '1d', '3mo'),
+                    fetchStockData(yfSymbol)
+                ]);
 
                 if (!history || history.length === 0) {
-                    // Fallback to simple price if history fails
-                    const basic = await fetchStockData(yfSymbol);
                     return {
                         ticker,
                         close: basic?.close || null,
                         volume: basic?.volume || null,
                         indicators: null
                     };
+                }
+
+                // Add live quote as the last entry in history if it's more recent
+                const lastHistory = history[history.length - 1];
+                const lastHistoryDatePart = lastHistory.date.split('T')[0];
+
+                if (basic && basic.close) {
+                    if (lastHistoryDatePart !== basic.priceDate) {
+                        history.push({
+                            ...basic,
+                            date: basic.priceDate
+                        });
+                    } else {
+                        // Update today's candle if it exists
+                        history[history.length - 1] = {
+                            ...lastHistory,
+                            ...basic,
+                            date: lastHistory.date // keep original timestamp/date
+                        };
+                    }
                 }
 
                 // Perform full technical analysis

@@ -172,6 +172,7 @@ export function PositionManager({ ticker, currentPrice, market = 'US', existingP
         if (!sellPrice || !sellQty) return;
         setIsSelling(true);
         try {
+            if (typeof onSell !== 'function') throw new Error("Sell position function not available.");
             await onSell({
                 sell_price: parseFloat(sellPrice),
                 quantity: parseFloat(sellQty),

@@ -58,11 +58,20 @@ export function useFavourites() {
     const toggleFavourite = async (symbol) => {
         // Optimistic UI update
         const isCurrentlyFav = favouriteTickers.includes(symbol);
-        setFavouriteTickers(prev =>
-            isCurrentlyFav
-                ? prev.filter(t => t !== symbol)
-                : [...prev, symbol]
-        );
+        const details = favouriteDetails[symbol] || {};
+        const canonical = details.ticker_full || symbol;
+
+        setFavouriteTickers(prev => {
+            if (isCurrentlyFav) {
+                // If un-favouriting, remove ALL tickers that share the same canonical ticker
+                return prev.filter(t => {
+                    const tDetails = favouriteDetails[t];
+                    return tDetails?.ticker_full !== canonical && t !== symbol && t !== canonical;
+                });
+            } else {
+                return [...prev, symbol];
+            }
+        });
 
         try {
             const res = await fetch('/.netlify/functions/toggleFavourite', {
@@ -79,7 +88,11 @@ export function useFavourites() {
 
                 // Sync with server state
                 setFavouriteTickers(prev => {
-                    const others = prev.filter(t => t !== symbol && t !== canonical);
+                    const others = prev.filter(t => {
+                        const tDetails = favouriteDetails[t];
+                        return tDetails?.ticker_full !== canonical && t !== symbol && t !== canonical;
+                    });
+
                     if (data.is_active) {
                         return [...others, symbol, canonical];
                     }
@@ -95,8 +108,11 @@ export function useFavourites() {
                 } else {
                     setFavouriteDetails(prev => {
                         const next = { ...prev };
-                        delete next[symbol];
-                        delete next[canonical];
+                        Object.keys(next).forEach(key => {
+                            if (next[key]?.ticker_full === canonical || key === symbol || key === canonical) {
+                                delete next[key];
+                            }
+                        });
                         return next;
                     });
                 }
