@@ -5,6 +5,80 @@ import StockChart from './StockChart';
 import { PositionManager } from './PositionManager';
 import { mapAnalysisToTradePlan } from '../lib/tradePlanMapper';
 
+const RRGauge = ({ current, sl, tp, rr2 }) => {
+    if (!current || !sl || !tp || current <= sl) return null;
+
+    // Calculate percentage position (0 is SL, 100 is TP)
+    const totalRange = tp - sl;
+    const currentFromSl = current - sl;
+    const pct = Math.min(100, Math.max(0, (currentFromSl / totalRange) * 100));
+    const pctRR2 = rr2 ? Math.min(100, Math.max(0, ((rr2 - sl) / totalRange) * 100)) : null;
+
+    // Determine color based on pct
+    let color = "#ef4444"; // Red
+    if (pct > 70) color = "#10b981"; // Green
+    else if (pct > 30) color = "#f59e0b"; // Orange/Yellow
+
+    return (
+        <div className="w-full space-y-1 mt-2">
+            <div className="flex justify-between text-[8px] font-bold text-gray-500 uppercase tracking-tighter">
+                <span>STOP LOSS</span>
+                <span>TARGET PROFIT</span>
+            </div>
+
+            <div className="relative pt-4 pb-1">
+                {/* RR 2.0 Arrow Marker */}
+                {pctRR2 !== null && (
+                    <div
+                        className="absolute top-0 flex flex-col items-center transition-all duration-1000 ease-out z-20"
+                        style={{ left: `${pctRR2}%`, transform: 'translateX(-50%)' }}
+                    >
+                        <span className="text-[7px] font-black text-emerald-400 mb-0.5 whitespace-nowrap bg-emerald-500/10 px-1 rounded-sm border border-emerald-500/20">RR 2.0</span>
+                        <div className="w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[4px] border-t-emerald-500"></div>
+                    </div>
+                )}
+
+                <div className="relative h-1.5 w-full bg-gray-800 rounded-full overflow-hidden border border-white/5">
+                    {/* Gradient background */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-red-500/50 via-yellow-500/50 to-emerald-500/50" />
+                    {/* Indicator */}
+                    <div
+                        className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_8px_white] z-10 transition-all duration-1000 ease-out"
+                        style={{ left: `${pct}%`, transform: 'translateX(-50%)' }}
+                    />
+                </div>
+            </div>
+
+            <div className="flex justify-between text-[9px] font-black tracking-tighter">
+                <span className="text-red-400">{sl.toFixed(3)}</span>
+                <span className="text-emerald-400">{tp.toFixed(3)}</span>
+            </div>
+        </div>
+    );
+};
+
+const MarketPulse = ({ data, market }) => {
+    if (!data) return null;
+
+    const isUS = market === 'US' || market === 'NASDAQ' || market === 'NYSE';
+    const indexData = isUS ? data.sp500 : data.klci;
+    const indexName = isUS ? 'S&P 500' : 'KLCI';
+
+    if (!indexData) return null;
+
+    const isBull = indexData.status === 'BULLISH';
+
+    return (
+        <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-black/40 border border-white/5 backdrop-blur-sm self-center">
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{indexName}</span>
+            <div className={`flex items-center gap-1 text-xs font-black ${isBull ? 'text-emerald-400' : 'text-red-400'}`}>
+                {isBull ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                <span>{indexData.change}%</span>
+            </div>
+        </div>
+    );
+};
+
 const GaugeMeter = ({ value, label, color, isPortfolio, loading, variant }) => {
     // value 0-100 to angle -90 to +90
     const safeValue = Math.min(Math.max(value, 0), 100);
@@ -257,12 +331,16 @@ export function StockModal({
     onSellPosition,
     onStockUpdate
 }) {
-    const currency = (market === 'MYR' || market === 'KLSE' || stock?.market === 'MYR' || stock?.market === 'KLSE') ? 'RM' : 'USD';
-    const currencySymbol = currency === 'RM' ? 'RM ' : '$';
-    const isBursa = currency === 'RM' || stock?.ticker?.endsWith('.KL');
+    const isBursa = (stock?.ticker?.endsWith('.KL') || /^\d{4}$/.test(stock?.ticker)) && stock?.market !== 'US' && stock?.market !== 'NASDAQ' && stock?.market !== 'NYSE';
+    const currency = isBursa ? 'RM' : 'USD';
+    const currencySymbol = isBursa ? 'RM ' : '$';
+    const marketContext = isBursa ? 'KLSE' : 'US';
 
     const [historyData, setHistoryData] = useState([]);
+    const [historyData4h, setHistoryData4h] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
+    const [loadingHistory4h, setLoadingHistory4h] = useState(false);
+    const [visualTimeframe, setVisualTimeframe] = useState('1D');
     const [tradePlan, setTradePlan] = useState(null);
     const [loadingTradePlan, setLoadingTradePlan] = useState(false);
     const [isShariahUpdating, setIsShariahUpdating] = useState(false);
@@ -334,16 +412,30 @@ export function StockModal({
 
     useEffect(() => {
         if (stock?.ticker) {
+            // Fetch 1D History
             setLoadingHistory(true);
-            fetch(`/.netlify/functions/getStockHistory?ticker=${stock.ticker}`)
+            fetch(`/.netlify/functions/getStockHistory?ticker=${stock.ticker}&interval=1d`)
                 .then(res => res.json())
                 .then(data => {
                     setHistoryData(data);
                     setLoadingHistory(false);
                 })
                 .catch(err => {
-                    console.error('Failed to fetch history:', err);
+                    console.error('Failed to fetch 1D history:', err);
                     setLoadingHistory(false);
+                });
+
+            // Fetch 4H History for Visual Plan
+            setLoadingHistory4h(true);
+            fetch(`/.netlify/functions/getStockHistory?ticker=${stock.ticker}&interval=4h&range=15d`)
+                .then(res => res.json())
+                .then(data => {
+                    setHistoryData4h(data);
+                    setLoadingHistory4h(false);
+                })
+                .catch(err => {
+                    console.error('Failed to fetch 4H history:', err);
+                    setLoadingHistory4h(false);
                 });
 
             // Fetch Trade Plan
@@ -369,13 +461,15 @@ export function StockModal({
         prevClose: stock.prevClose || stock.previousClose,
         shariah_status: (stock.shariah || stock.isShariah) ? 'SHARIAH' : 'NON_SHARIAH',
         snapshotScore10: parseFloat(stock.score) || 0,
+        momentumScore10: parseFloat(stock.momentumScore) || 0,
         verdictLabel: "WAIT",
         convictionPct: 0,
         lastCheckedAt: new Date().toISOString(),
         multiTimeframe: stock.alignment || { confirmedCount: 0, totalCount: 1 },
-        indicators: stock.stats || {},
-        trade: stock.levels || {},
-        checklist: []
+        indicators: stock.stats || { rsi14: 50, trend: 'neutral' },
+        trade: stock.levels || { rrRatio: 0 },
+        checklist: [],
+        marketPulse: null
     };
 
     const pos = positions[stock.ticker];
@@ -579,6 +673,10 @@ export function StockModal({
                                 {isShariahUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <AlertOctagon className="w-3 h-3" />}
                                 {plan.shariah_status === 'SHARIAH' ? 'SHARIAH' : 'BUKAN SHARIAH?'}
                             </button>
+                            {/* Market Sentiment Context */}
+                            {plan.marketPulse && (
+                                <MarketPulse data={plan.marketPulse} market={marketContext} />
+                            )}
                         </div>
                         <div className="flex items-center gap-2 mt-2">
                             <span className={`text-3xl font-black ${pos ? (plPercent >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-primary'}`}>
@@ -800,6 +898,91 @@ export function StockModal({
                                 }}
                             />
 
+                            {/* Price History (100D) Section */}
+                            <div className="space-y-3">
+                                {loadingHistory ? (
+                                    <div className="h-48 flex flex-col items-center justify-center bg-surfaceHighlight/20 rounded-lg border border-border animate-pulse gap-2">
+                                        <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Loading Chart Data...</span>
+                                    </div>
+                                ) : (
+                                    <StockChart data={historyData} title="Price History (100D)" />
+                                )}
+                            </div>
+
+                            {/* Enhanced Visual Trade Plan Card */}
+                            <div className="bg-surfaceHighlight/30 rounded-2xl p-5 border border-white/5 space-y-4 relative overflow-hidden group/visual">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-4 bg-primary rounded-full"></div>
+                                        <h3 className="text-xs font-black text-white uppercase tracking-widest">Pelan Visual (TP/SL)</h3>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setVisualTimeframe('1D')}
+                                            className={`px-3 py-1 rounded-lg text-[10px] font-black tracking-widest transition-all ${visualTimeframe === '1D' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'bg-white/5 text-gray-500 hover:text-gray-300'}`}
+                                        >
+                                            1D
+                                        </button>
+                                        <button
+                                            onClick={() => setVisualTimeframe('4H')}
+                                            className={`px-3 py-1 rounded-lg text-[10px] font-black tracking-widest transition-all ${visualTimeframe === '4H' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'bg-white/5 text-gray-500 hover:text-gray-300'}`}
+                                        >
+                                            4H
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Visual RR Gauge */}
+                                {plan.trade && plan.trade.stopLoss && plan.trade.tp1 && (
+                                    <div className="mb-4">
+                                        <RRGauge
+                                            current={plan.price}
+                                            sl={plan.trade.stopLoss}
+                                            tp={plan.trade.tp1}
+                                            rr2={plan.trade.queuePrice}
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="space-y-4">
+
+                                    {((visualTimeframe === '1D' && loadingHistory) || (visualTimeframe === '4H' && loadingHistory4h)) ? (
+                                        <div className="h-48 flex flex-col items-center justify-center bg-black/10 rounded-xl border border-dashed border-white/5">
+                                            <Loader2 className="w-6 h-6 text-primary animate-spin mb-2" />
+                                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest animate-pulse">Syncing Visual Plan...</span>
+                                        </div>
+                                    ) : (
+                                        <StockChart
+                                            data={visualTimeframe === '1D' ? historyData : historyData4h}
+                                            plan={plan}
+                                            showLines={true}
+                                            title={`${visualTimeframe} View + Trade Levels`}
+                                        />
+                                    )}
+
+                                    <div className="flex items-center justify-between px-1">
+                                        <p className="text-[9px] text-gray-500 font-bold uppercase tracking-tighter opacity-60">
+                                            Garisan menunjukkan paras kritikal untuk rujukan pantas.
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-1">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                                <span className="text-[8px] text-gray-500 font-black">TP</span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
+                                                <span className="text-[8px] text-gray-500 font-black whitespace-nowrap">RR 2.0</span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                                                <span className="text-[8px] text-gray-500 font-black">SL</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Automated Commentary Section */}
                             <div className="bg-surfaceHighlight/30 rounded-xl p-5 border border-border space-y-4">
                                 <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
@@ -824,7 +1007,7 @@ export function StockModal({
                                 </div>
                             </div>
 
-                            {/* Support & Resistance Table */}
+                            {/* Moving Averages Section */}
                             <div className="bg-background rounded-2xl border border-white/5 overflow-hidden">
                                 <div className="p-4 bg-surfaceHighlight/30 border-b border-white/5 text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                                     <Target className="w-3 h-3" /> Moving Averages
@@ -845,18 +1028,6 @@ export function StockModal({
                                         </tr>
                                     </tbody>
                                 </table>
-                            </div>
-
-                            {/* Stock Chart Section */}
-                            <div className="space-y-3">
-                                {loadingHistory ? (
-                                    <div className="h-48 flex flex-col items-center justify-center bg-surfaceHighlight/20 rounded-lg border border-border animate-pulse gap-2">
-                                        <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Loading Chart Data...</span>
-                                    </div>
-                                ) : (
-                                    <StockChart data={historyData} />
-                                )}
                             </div>
                         </div>
 
@@ -1143,33 +1314,6 @@ export function StockModal({
                                                 </div>
                                             </div>
 
-                                            {/* Wait for RR 2.0 Pricing Notice - Only show if NO active position */}
-                                            {!pos && plan.trade?.queuePrice && parseFloat(plan.price) > parseFloat(plan.trade.queuePrice) && (
-                                                <div className="w-full mt-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 relative overflow-hidden group/notice animate-in slide-in-from-top-2 duration-500">
-                                                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                                                        <Clock className="w-12 h-12 text-emerald-400" />
-                                                    </div>
-                                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                                        <div className="space-y-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Wait for RR 2.0 @</span>
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                                            </div>
-                                                            <div className="text-4xl font-black text-emerald-400 tracking-tighter">
-                                                                <span className="text-xl text-emerald-500/60 mr-2">{currency}</span>
-                                                                {parseFloat(plan.trade.queuePrice).toFixed(3)}
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex flex-col md:items-end gap-2">
-                                                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest leading-none">Que Strategy</span>
-                                                            <div className="bg-emerald-500/20 text-emerald-400 px-5 py-2 rounded-xl border border-emerald-500/30 font-black text-[11px] uppercase tracking-wider shadow-lg shadow-emerald-500/5">
-                                                                (ADVANTAGE QUE)
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
                                             {/* Checklist Section - Show ENTRY checklist if NO position, or HOLDING checklist if position exists */}
                                             {((!pos && plan.checklist?.length > 0) || (pos && plan.holdingChecklist?.length > 0)) && (
                                                 <div className="w-full mt-6 space-y-3">
@@ -1212,21 +1356,49 @@ export function StockModal({
                                                     </div>
                                                 </div>
                                             )}
+
+                                            {/* Wait for RR 2.0 Pricing Notice - Only show if NO active position */}
+                                            {!pos && plan.trade?.queuePrice && parseFloat(plan.price) > parseFloat(plan.trade.queuePrice) && (
+                                                <div className="w-full mt-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 relative overflow-hidden group/notice animate-in slide-in-from-top-2 duration-500">
+                                                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                                                        <Clock className="w-12 h-12 text-emerald-400" />
+                                                    </div>
+                                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Wait for RR 2.0 @</span>
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                            </div>
+                                                            <div className="text-4xl font-black text-emerald-400 tracking-tighter">
+                                                                <span className="text-xl text-emerald-500/60 mr-2">{currency}</span>
+                                                                {parseFloat(plan.trade.queuePrice).toFixed(3)}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex flex-col md:items-end gap-2">
+                                                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest leading-none">Que Strategy</span>
+                                                            <div className="bg-emerald-500/20 text-emerald-400 px-5 py-2 rounded-xl border border-emerald-500/30 font-black text-[11px] uppercase tracking-wider shadow-lg shadow-emerald-500/5">
+                                                                (ADVANTAGE QUE)
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Quick Execution Summary Card - moved here */}
+                                        {/* Quick Execution Summary (Merged with Pelan Dagangan Swing) */}
                                         <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-6 relative overflow-hidden group/exec animate-in fade-in slide-in-from-right-4 duration-700">
                                             <div className="absolute -right-4 -top-4 opacity-[0.03] group-hover/exec:opacity-[0.07] transition-opacity pointer-events-none rotate-12">
                                                 <Zap className="w-32 h-32 text-emerald-400" />
                                             </div>
-                                            <div className="space-y-5">
+                                            <div className="space-y-6">
                                                 <div className="flex items-center justify-between pb-3 border-b border-white/5">
                                                     <div className="flex items-center gap-2.5">
                                                         <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center">
                                                             <Zap className="w-4 h-4 text-emerald-400 fill-emerald-400/20" />
                                                         </div>
                                                         <div>
-                                                            <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Pelan Tindakan Segera</h3>
+                                                            <h3 className="text-[11px] font-black text-white uppercase tracking-[0.2em] leading-none mb-1">Pelan Dagangan Swing</h3>
                                                             <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest leading-none">Quick Execution Summary</span>
                                                         </div>
                                                     </div>
@@ -1235,19 +1407,21 @@ export function StockModal({
                                                         onClick={() => {
                                                             const shortName = stock.short_name || plan.raw?.liveStock?.shortName || stock.company_name?.split(' ')[0] || stock.company?.split(' ')[0] || (favouriteDetails && favouriteDetails[stock.ticker]?.short_name) || stock.ticker?.replace('.KL', '') || stock.ticker || 'SAHAM';
                                                             const tickerLabel = stock.ticker || '';
+                                                            const entryTrigger = plan.raw?.liveStock?.planText?.entryTrigger || stock.planText?.entryTrigger;
                                                             const entryRange = plan.trade.queuePrice?.toFixed(3) === plan.trade.entryPrice?.toFixed(3)
                                                                 ? `${currency} ${plan.trade.entryPrice?.toFixed(3) || '0.000'}`
                                                                 : `${currency} ${plan.trade.queuePrice?.toFixed(3) || '0.000'} - ${plan.trade.entryPrice?.toFixed(3) || '0.000'}`;
                                                             const msg = [
                                                                 `📊 *${shortName}* (${tickerLabel})`,
                                                                 ``,
+                                                                entryTrigger ? `💡 Trigger: ${entryTrigger}` : '',
                                                                 `📈 Entry Range: ${entryRange}`,
                                                                 `🛑 Stop Loss: ${currency} ${plan.trade.stopLoss?.toFixed(3) || '0.000'} & Below`,
                                                                 `🎯 TP1: ${plan.trade.tp1?.toFixed(3) || '-'} | TP2: ${plan.trade.tp2?.toFixed(3) || '-'}`,
                                                                 `⏰ Tempoh: 1-20 Trading Days`,
                                                                 ``,
                                                                 `💰 Harga Semasa: ${currency} ${parseFloat(plan.price || 0).toFixed(3)}`,
-                                                            ].join('\n');
+                                                            ].filter(Boolean).join('\n');
                                                             navigator.clipboard.writeText(msg).then(() => {
                                                                 setCopiedPlan(true);
                                                                 setTimeout(() => setCopiedPlan(false), 2000);
@@ -1264,8 +1438,18 @@ export function StockModal({
                                                     </button>
                                                 </div>
 
-                                                <div className="grid grid-cols-2 gap-6">
-                                                    <div className="space-y-1.5 p-3 rounded-2xl bg-white/5 border border-white/5 group-hover/exec:border-emerald-500/10 transition-colors">
+                                                {/* Entry Trigger Text */}
+                                                {(plan.raw?.liveStock?.planText?.entryTrigger || stock.planText?.entryTrigger) && (
+                                                    <div className="bg-black/20 rounded-2xl p-4 border border-white/5">
+                                                        <label className="text-[10px] text-gray-500 uppercase font-black block mb-1.5 tracking-widest">Entry Trigger</label>
+                                                        <div className="text-sm text-white font-bold leading-relaxed">
+                                                            {plan.raw?.liveStock?.planText?.entryTrigger || stock.planText?.entryTrigger}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-1.5 p-3 rounded-2xl bg-white/5 border border-white/5">
                                                         <div className="flex items-center gap-1.5">
                                                             <TrendingUp className="w-3 h-3 text-gray-500" />
                                                             <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Entry Range</span>
@@ -1277,40 +1461,60 @@ export function StockModal({
                                                             }
                                                         </div>
                                                     </div>
-                                                    <div className="space-y-1.5 p-3 rounded-2xl bg-red-500/5 border border-red-500/5 group-hover/exec:border-red-500/10 transition-colors">
+                                                    <div className="space-y-1.5 p-3 rounded-2xl bg-red-500/5 border border-red-500/5">
                                                         <div className="flex items-center gap-1.5">
                                                             <AlertOctagon className="w-3 h-3 text-red-400/50" />
                                                             <span className="text-[9px] font-bold text-red-400/50 uppercase tracking-widest">Stop Loss</span>
                                                         </div>
                                                         <div className="text-sm font-black text-red-400 tracking-tight">
-                                                            {currency} {plan.trade.stopLoss?.toFixed(3) || '0.000'} <span className="text-[10px]">&amp; BELOW</span>
+                                                            {currency} {plan.trade.stopLoss?.toFixed(3) || '0.000'}
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/10 group-hover/exec:border-emerald-500/30 transition-all">
-                                                    <div className="flex items-center gap-1.5 mb-2">
-                                                        <Target className="w-3 h-3 text-emerald-400" />
-                                                        <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Target Profit (TP1 / TP2)</span>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/10">
+                                                        <div className="flex items-center gap-1.5 mb-2">
+                                                            <Target className="w-3 h-3 text-emerald-400" />
+                                                            <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Target Profit (TP1)</span>
+                                                        </div>
+                                                        <div className="text-xl font-black text-white tracking-tighter">
+                                                            {currency} {plan.trade.tp1?.toFixed(3)}
+                                                            <div className="text-[10px] text-emerald-500/60 font-bold">+{(((plan.trade.tp1 || 0) - plan.price) / plan.price * 100).toFixed(1)}%</div>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-lg font-black text-white tracking-tighter flex items-center justify-between">
-                                                        <span>{plan.trade.tp1?.toFixed(3)}</span>
-                                                        <span className="text-white/20">/</span>
-                                                        <span>{plan.trade.tp2?.toFixed(3)}</span>
+                                                    <div className="p-4 rounded-2xl bg-teal-500/10 border border-teal-500/10">
+                                                        <div className="flex items-center gap-1.5 mb-2">
+                                                            <Zap className="w-3 h-3 text-teal-400" />
+                                                            <span className="text-[9px] font-black text-teal-400 uppercase tracking-widest">Target Profit (TP2)</span>
+                                                        </div>
+                                                        <div className="text-xl font-black text-white tracking-tighter">
+                                                            {currency} {plan.trade.tp2?.toFixed(3)}
+                                                            <div className="text-[10px] text-teal-500/60 font-bold">+{(((plan.trade.tp2 || 0) - plan.price) / plan.price * 100).toFixed(1)}%</div>
+                                                        </div>
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center justify-between px-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <Clock className="w-3 h-3 text-blue-400" />
-                                                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Trade Duration</span>
+                                                <div className="flex items-center justify-between bg-black/20 p-4 rounded-2xl border border-white/5">
+                                                    <div className="flex flex-col">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <Clock className="w-3 h-3 text-blue-400" />
+                                                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Risk Reward (TP1)</span>
+                                                        </div>
+                                                        <div className={`text-2xl font-black ${(plan.trade?.rrRatio || 0) >= 2.0 ? 'text-emerald-400' : 'text-orange-400'}`}>
+                                                            {(plan.trade?.rrRatio || 0).toFixed(2)}
+                                                        </div>
                                                     </div>
-                                                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.1em] px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                                                        1 - 20 Trading Days
-                                                    </span>
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Duration</span>
+                                                        <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                                                            1 - 20 Days
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
+
 
                                         {/* Signal Badges */}
                                         <div className="mt-5 flex flex-wrap gap-2 relative z-10">
@@ -1430,46 +1634,7 @@ export function StockModal({
                         </div>
                     </div>
 
-                    {/* Trade Setup Strategy */}
-                    {(plan.raw?.liveStock?.planText || stock.planText) && (
-                        <div className="bg-primary/5 rounded-2xl p-6 border border-primary/20">
-                            <h3 className="text-xs font-black text-primary mb-5 flex items-center gap-2 uppercase tracking-widest">
-                                <CheckCircle className="w-4 h-4" /> Pelan Dagangan Swing
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="text-[10px] text-gray-500 uppercase font-black block mb-1.5 tracking-widest">Entry Trigger</label>
-                                        <div className="text-sm text-white font-bold leading-relaxed">{plan.raw?.liveStock?.planText?.entryTrigger || stock.planText?.entryTrigger}</div>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="text-[10px] text-gray-500 uppercase font-black block mb-1.5 tracking-widest">TP 1</label>
-                                            <div className="text-lg font-black text-emerald-400">{currency} {(plan.trade?.tp1 || stock.levels?.target1 || 0).toFixed(3)}</div>
-                                            <div className="text-[9px] text-emerald-500/60 font-bold">+{(((plan.trade?.tp1 || stock.levels?.target1 || 0) - plan.price) / plan.price * 100).toFixed(1)}%</div>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-gray-500 uppercase font-black block mb-1.5 tracking-widest">TP 2</label>
-                                            <div className="text-lg font-black text-teal-400">{currency} {(plan.trade?.tp2 || stock.levels?.target2 || 0).toFixed(3)}</div>
-                                            <div className="text-[9px] text-teal-500/60 font-bold">+{(((plan.trade?.tp2 || stock.levels?.target2 || 0) - plan.price) / plan.price * 100).toFixed(1)}%</div>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] text-gray-500 uppercase font-black block mb-1.5 tracking-widest">SL (Exit)</label>
-                                            <div className="text-lg font-black text-red-400">{currency} {(plan.trade?.stopLoss || stock.levels?.stopPrice || 0).toFixed(3)}</div>
-                                            <div className="text-[9px] text-red-500/60 font-bold">-{((plan.price - (plan.trade?.stopLoss || stock.levels?.stopPrice || 0)) / plan.price * 100).toFixed(1)}%</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="bg-black/20 rounded-xl p-4 border border-white/5 flex flex-col justify-center items-center text-center">
-                                    <div className="text-[10px] text-gray-500 uppercase font-black mb-2 tracking-widest text-emerald-500/80">RR (TP1) Status</div>
-                                    <div className={`text-3xl font-black mb-1 ${(plan.trade?.rrRatio || stock.levels?.rr1 || 0) >= 2.0 ? 'text-emerald-400' : 'text-orange-400'}`}>
-                                        {(plan.trade?.rrRatio || stock.levels?.rr1 || 0).toFixed(2)}
-                                    </div>
-                                    <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest opacity-50">Risk Reward Ratio (TP1)</div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+
 
                     {/* Inline Chart Drawer */}
                     {showChart && (
@@ -1537,4 +1702,6 @@ export function StockModal({
             </div>
         </div>
     );
-}
+};
+
+export default StockModal;

@@ -1,6 +1,7 @@
 import { supabase } from './utils/supabaseClient.js';
 import { analyzeIntraday } from './getIntradayAnalysisV2.js';
 import { buildTradePlan } from './utils/buildTradePlan.js';
+import { fetchStockData } from './utils/scraper.js';
 
 export const handler = async (event, context) => {
     // Support both POST and GET
@@ -52,7 +53,26 @@ export const handler = async (event, context) => {
             if (fallback) stockInfo = fallback;
         }
 
-        // 3. Build Standardized Trade Plan
+        // 3. Fetch Market Pulse (S&P 500 and KLCI)
+        const [sp500, klci] = await Promise.all([
+            fetchStockData('^GSPC'),
+            fetchStockData('^KLSE')
+        ]);
+
+        const marketPulse = {
+            sp500: sp500 ? {
+                price: sp500.close,
+                change: ((sp500.close - sp500.previousClose) / sp500.previousClose * 100).toFixed(2),
+                status: sp500.close >= sp500.previousClose ? 'BULLISH' : 'BEARISH'
+            } : null,
+            klci: klci ? {
+                price: klci.close,
+                change: ((klci.close - klci.previousClose) / klci.previousClose * 100).toFixed(2),
+                status: klci.close >= klci.previousClose ? 'BULLISH' : 'BEARISH'
+            } : null
+        };
+
+        // 4. Build Standardized Trade Plan
         const tradePlan = buildTradePlan({
             ticker,
             companyName: stockInfo?.company_name,
@@ -60,6 +80,9 @@ export const handler = async (event, context) => {
             market: stockInfo?.market,
             analysis
         });
+
+        // Add marketPulse to the final plan
+        tradePlan.marketPulse = marketPulse;
 
         return {
             statusCode: 200,

@@ -1,11 +1,8 @@
 import { supabase } from './utils/supabaseClient.js';
+import { fetchIntradayData } from './utils/scraper.js';
 
-/**
- * Netlify function to fetch historical price data for a specific ticker.
- * Returns the last 100 trading days for chart rendering.
- */
 export const handler = async (event, context) => {
-    const { ticker } = event.queryStringParameters || {};
+    const { ticker, interval = '1d', range = '5d' } = event.queryStringParameters || {};
 
     if (!ticker) {
         return {
@@ -15,28 +12,46 @@ export const handler = async (event, context) => {
     }
 
     try {
-        const { data, error } = await supabase
-            .from('klse_prices_daily')
-            .select('price_date, close, volume')
-            .eq('ticker_full', ticker)
-            .order('price_date', { ascending: false })
-            .limit(100);
+        let historyData = [];
 
-        if (error) throw error;
+        if (interval === '1d') {
+            // Use database for daily history (efficient for 100 days)
+            const { data, error } = await supabase
+                .from('klse_prices_daily')
+                .select('price_date, close, volume')
+                .eq('ticker_full', ticker)
+                .order('price_date', { ascending: false })
+                .limit(100);
 
-        // Return in chronological order (oldest first for chart)
-        const sortedData = (data || []).reverse().map(p => ({
-            date: p.price_date,
-            close: p.close,
-            volume: p.volume
-        }));
+            if (error) throw error;
+            historyData = (data || []).reverse().map(p => ({
+                date: p.price_date,
+                close: p.close,
+                volume: p.volume
+            }));
+        } else {
+            // Use scraper for intraday history (4h, 1h, 15m etc)
+            // Yahoo supports: 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo
+            // Note: 4h is not natively supported by Yahoo v8 chart directly as an interval sometimes, 
+            // but we can fetch 1h and aggregate OR just use 1h for '4h-like' detail if sufficient.
+            // Actually 1h is widely supported.
+            const yahooInterval = interval === '4h' ? '1h' : interval;
+            const intraday = await fetchIntradayData(ticker, yahooInterval, range);
+
+            if (intraday) {
+                historyData = intraday.map(p => ({
+                    date: p.date,
+                    close: p.close,
+                    volume: p.volume,
+                    timestamp: p.timestamp
+                }));
+            }
+        }
 
         return {
             statusCode: 200,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(sortedData)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(historyData)
         };
     } catch (err) {
         console.error('Error fetching history:', err);

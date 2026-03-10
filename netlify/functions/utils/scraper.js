@@ -27,6 +27,9 @@ export async function fetchStockData(tickerCode) {
         const meta = result.meta;
         const indicator = result.indicators?.quote?.[0];
 
+        const latestPrice = meta.regularMarketPrice || meta.chartPreviousClose || 0;
+        const priceDate = new Date((meta.regularMarketTime || Date.now() / 1000) * 1000).toISOString().split('T')[0];
+
         const highs = indicator?.high || [];
         const lows = indicator?.low || [];
         const dayHigh = meta?.regularMarketDayHigh || (highs.length > 0 ? Math.max(...highs.filter(h => h !== null)) : latestPrice);
