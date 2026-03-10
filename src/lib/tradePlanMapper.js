@@ -45,6 +45,7 @@ export function mapAnalysisToTradePlan(apiResponse) {
         { label: `Risk/Reward: ${rrNum?.toFixed(2)}`, passed: rrNum >= 2.0 },
         { label: "Daily HA Confirmation", passed: !!liveStock.heikinAshiGo },
         { label: "4H Intraday Confirmation", passed: ha4h.color === 'Green' },
+        { label: "RSI Not Overbought", passed: stats.rsi14 < 70 },
         { label: "Stoch Timing (K > D, Not OB)", passed: !!(stats.stoch?.k > stats.stoch?.d && stats.stoch?.k <= 80) }
     ];
 

@@ -125,7 +125,11 @@ const FavouritesPage = () => {
                 close: latestInfo?.close || base.close,
                 score: latestInfo?.score ?? base.score,
                 momentumScore: latestInfo?.momentumScore ?? base.momentumScore,
+                snapshotScore10: latestInfo?.snapshotScore10 ?? latestInfo?.score ?? base.snapshotScore10 ?? base.score,
                 signals: latestInfo?.signals || base.signals,
+                levels: latestInfo?.levels || base.levels || {},
+                verdictLabel: latestInfo?.verdictLabel || base.verdictLabel,
+                systemVerdictText: latestInfo?.systemVerdictText || base.systemVerdictText,
                 stats: {
                     ...base.stats,
                     rsi14: latestInfo?.rsi14 ?? base.stats?.rsi14,
@@ -144,12 +148,16 @@ const FavouritesPage = () => {
             short_name: details.short_name || '',
             score: latestInfo?.score || null,
             momentumScore: latestInfo?.momentumScore || null,
+            snapshotScore10: latestInfo?.score || null,
             close: latestInfo?.close || 0,
             isLivePrice: !!latestInfo,
             stats: {
                 rsi14: latestInfo?.rsi14 || null,
                 dropdownPercent: latestInfo?.dropdownPercent || null
             },
+            levels: latestInfo?.levels || {},
+            verdictLabel: latestInfo?.verdictLabel || 'NEUTRAL',
+            systemVerdictText: latestInfo?.systemVerdictText || 'Memuat turun data...',
             signals: latestInfo?.signals || ['PENDING'],
             isPending: !latestInfo
         };

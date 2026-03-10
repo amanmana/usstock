@@ -27,21 +27,28 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
     const momentumScore = parseFloat(liveStock.momentumScore) || 0;
 
     // 1. RR standardization & Calculation
-    const entry = levels.rr2_price || analysis.currentPrice || liveStock.close;
+    const currentPrice = analysis.currentPrice || liveStock.close || 0;
+    const quePrice = levels.rr2_price || currentPrice;
     const stopPrice = levels.stopPrice;
     const tp1 = levels.target1;
     const tp2 = levels.target2;
 
-    let rrRatio = null;
+    let rrRatio = 0; // Current RR
     let rrNote = "Missing price levels";
-    if (entry && stopPrice && entry > stopPrice) {
-        const target = tp1; // Use TP1 for conservative Risk/Reward assessment as per user request
-        if (target && target > entry) {
-            rrRatio = (target - entry) / (entry - stopPrice);
-            rrNote = rrRatio >= 2.0 ? "High RR Advantage (TP1)" : `Weak RR TP1 (${rrRatio.toFixed(2)})`;
+    let potentialRR = 0; // Theoretical (Que Price)
+
+    if (currentPrice && stopPrice && currentPrice > stopPrice) {
+        const target = tp1;
+        if (target && target > currentPrice) {
+            rrRatio = (target - currentPrice) / (currentPrice - stopPrice);
+            rrNote = rrRatio >= 1.5 ? "Good RR" : `Weak RR (${rrRatio.toFixed(2)})`;
         } else {
             rrNote = "Invalid target price";
         }
+    }
+
+    if (quePrice && stopPrice && quePrice > stopPrice && tp1 > quePrice) {
+        potentialRR = (tp1 - quePrice) / (quePrice - stopPrice);
     }
 
     // 2. Multi-timeframe alignment
@@ -50,22 +57,7 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
 
     // 3. Conviction % Calculation
     let convictionPct = Math.round(score * 10);
-    let bonus = 0;
-    if (liveStock.isMinervini) bonus += 8;
-    if (confirmedCount === totalCount && totalCount >= 2) bonus += 15;
-    if (analysis.adviceType === 'buy' || confirmedCount >= 2) bonus += 10;
-
-    // Final Decision Step (Moved up slightly to use for conviction)
-    const isMTFAligned = confirmedCount === totalCount && totalCount >= 2;
-    const isHighConviction = score >= 8.0;
-    const isDoubleGoCandidate = rrRatio >= 2.0 && isMTFAligned && isHighConviction && (isPullback || isBreakout) && !isOverbought;
-
-    if (isDoubleGoCandidate) bonus += 15;
-
-    convictionPct = Math.min(100, convictionPct + bonus);
-
     // 4. Decision Engine Logic (Rule-based)
-    const currentPrice = analysis.currentPrice || liveStock.close || 0;
     const isBullishTrend = stats.ma20 && stats.ma50 && stats.ma20 > stats.ma50;
 
     // Momentum mapping
@@ -80,6 +72,19 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
     const isPullback = isBullishTrend && isNearMA20;
     const isBreakout = levels.resistance && currentPrice > levels.resistance && stats.volumeSurge;
     const isHighRRWatch = rrRatio >= 2.0;
+
+    // Final Decision Step (Moved up slightly to use for conviction)
+    const isMTFAligned = confirmedCount === totalCount && totalCount >= 2;
+    const isHighConviction = score >= 8.0;
+    const isDoubleGoCandidate = rrRatio >= 2.0 && isMTFAligned && isHighConviction && (isPullback || isBreakout) && !isOverbought;
+
+    let bonus = 0;
+    if (liveStock.isMinervini) bonus += 8;
+    if (confirmedCount === totalCount && totalCount >= 2) bonus += 15;
+    if (analysis.adviceType === 'buy' || confirmedCount >= 2) bonus += 10;
+    if (isDoubleGoCandidate) bonus += 15;
+
+    convictionPct = Math.min(100, convictionPct + bonus);
 
     let setupValue = "No Setup";
     let setupNote = "Tunggu setup terbentuk.";
@@ -103,25 +108,30 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
     let verdictLabel = "WAIT";
     let advice = "Sila rujuk indikator teknikal untuk pengesahan.";
 
-    if (!isBullishTrend) {
-        if (rrRatio >= 2.0) {
+    if (!isBullishTrend || liveStock.sentiment4h === 'BEARISH') {
+        if (rrRatio >= 2.0 && score >= 7.5) {
             verdictLabel = "WAIT";
-            advice = "MONITOR: Struktur 'Base Building' sedang terbentuk dengan RR menarik. Tunggu breakout MA20.";
+            advice = "MONITOR: Trend melemah tetapi RR menarik. Tunggu pemulihan (Reversal) sebelum masuk.";
         } else {
             verdictLabel = "AVOID";
-            advice = "ELAKKAN (AVOID): Trend Bearish dan Risk/Reward tidak berbaloi buat masa ini.";
+            advice = "ELAKKAN (AVOID): Trend sedang merudum (Bearish). Risiko 'sikat' atau jatuh lebih jauh adalah tinggi.";
         }
     } else if (rrRatio && rrRatio < 1.3) {
-        verdictLabel = "AVOID";
-        advice = "RISIKO TINGGI: Nisbah risiko-ganjaran tidak menarik. Lebihkan tunai.";
+        if (score >= 8.5 || momentumScore >= 8.5) {
+            verdictLabel = "WAIT";
+            advice = "MONITOR: Skor teknikal sangat kuat, tetapi harga sekarang sudah terlalu jauh dari 'Zon Selesa'. Tunggu pullback.";
+        } else {
+            verdictLabel = "AVOID";
+            advice = "RISIKO TINGGI: Nisbah risiko-ganjaran tidak menarik. Elakkan buat masa ini.";
+        }
     } else if (rrRatio >= 1.8 && (isPullback || isBreakout) && !isOverbought) {
         // Double Go Trigger
-        const isMTFAligned = confirmedCount === totalCount && totalCount >= 2;
-        const isHighConviction = score >= 8.0;
+        const candMTFAligned = confirmedCount === totalCount && totalCount >= 2;
+        const candHighConviction = score >= 8.0;
         const isMTFConfirmed = confirmedCount >= 2;
         const isEliteScore = score >= 8.5 && confirmedCount >= 1;
 
-        if (isMTFAligned && isHighConviction && rrRatio >= 2.0) {
+        if (candMTFAligned && candHighConviction && rrRatio >= 2.0) {
             verdictLabel = "DOUBLE GO";
             advice = "SAH: DOUBLE GO! Semua parameter (MTF, Setup, RR) dalam keadaan sempurna.";
         } else if (isMTFConfirmed || isEliteScore) {
@@ -143,16 +153,22 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
     // 5. Checklist Construction with Notes (Refined for context)
     const checklist = [
         {
-            label: `Daily Score: ${score.toFixed(1)} / 10`,
+            label: `Daily Trend: ${score.toFixed(1)} / 10`,
             value: score >= 7.0 ? "Strong" : "Weak",
             passed: score >= 7.0,
-            note: score >= 7.0 ? "Trend & Score menyokong kenaikan." : "Market dalam fasa lemah."
+            note: score >= 7.0 ? "Trend menyokong kenaikan." : "Market dalam fasa lemah."
         },
         {
-            label: "Risk/Reward Ratio (RR)",
-            value: rrRatio ? rrRatio.toFixed(2) : "N/A",
-            passed: rrRatio >= 2.0,
-            note: rrRatio >= 2.0 ? "RR Sangat Menarik (> 2.0)" : (rrRatio >= 1.5 ? "RR Diterima" : "RR Terlalu Kecil")
+            label: `Momentum: ${momentumScore.toFixed(1)} / 10`,
+            value: momentumScore >= 7.0 ? "Strong" : "Weak",
+            passed: momentumScore >= 7.0,
+            note: momentumScore >= 7.0 ? "Momentum sedang meningkat." : "Momentum masih perlahan."
+        },
+        {
+            label: `Risk/Reward Ratio (RR)`,
+            value: rrRatio >= 1.5 ? "Strong" : (rrRatio >= 0.8 ? "Neutral" : "Weak"),
+            passed: rrRatio >= 1.5,
+            note: rrRatio >= 1.5 ? "Berbaloi (High RR)." : (rrRatio >= 0.5 ? `RR Semasa ${rrRatio.toFixed(2)} (Lemah).` : `RR Semasa ${rrRatio.toFixed(2)} (Sangat Berisiko).`)
         },
         {
             label: "Timeframe Alignment",
@@ -165,6 +181,12 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
             value: liveStock.heikinAshiGo ? "Bullish" : "Monitor",
             passed: !!liveStock.heikinAshiGo,
             note: liveStock.heikinAshiGo ? "Heikin Ashi menunjukkan momentum." : "Trend belum selaras."
+        },
+        {
+            label: "RSI Not Overbought",
+            value: stats.rsi14 ? stats.rsi14.toFixed(1) : "N/A",
+            passed: stats.rsi14 < 70,
+            note: stats.rsi14 < 70 ? "Harga belum terlalu panas." : "Overbought! Tunggu pullback."
         }
     ];
 
@@ -200,9 +222,9 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
         },
         {
             label: "Breakeven Secured?",
-            value: currentPrice >= entry ? "SAFE" : "AT RISK",
-            passed: currentPrice >= entry,
-            note: currentPrice >= entry ? "Anda berada dalam zon untung." : "Masih di bawah harga belian."
+            value: currentPrice >= quePrice ? "SAFE" : "AT RISK",
+            passed: currentPrice >= quePrice,
+            note: currentPrice >= quePrice ? "Anda berada dalam zon untung." : "Masih di bawah harga belian."
         },
         {
             label: "Above MA10 Support?",
@@ -224,6 +246,8 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
         convictionPct: convictionPct,
 
         price: currentPrice,
+        open: liveStock.open || currentPrice,
+        prevClose: liveStock.prevClose || currentPrice,
         currency: (market === 'MYR' || market === 'KLSE' || liveStock.market === 'MYR' || liveStock.market === 'KLSE') ? 'RM' : 'USD',
         market: market || liveStock.market || 'US',
         sentiment4h: ha4h.status === 'GO' ? 'BULLISH' : (ha4h.status === 'SELL' ? 'BEARISH' : 'NEUTRAL'),
@@ -251,7 +275,7 @@ export function buildTradePlan({ ticker, companyName, shariahStatus, market, ana
         trade: {
             strategyLabel: isBreakout ? 'Breakout Setup' : (isPullback ? 'Pullback Rebound' : 'Trend Monitoring'),
             entryTriggerText: liveStock.planText?.entryTrigger || "Menunggu isyarat harga",
-            entryPrice: entry,
+            entryPrice: quePrice,
             stopLoss: stopPrice,
             tp1: tp1,
             tp2: tp2,

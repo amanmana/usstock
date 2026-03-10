@@ -27,21 +27,17 @@ export async function fetchStockData(tickerCode) {
         const meta = result.meta;
         const indicator = result.indicators?.quote?.[0];
 
-        // Use regularMarketPrice from meta as it's the most real-time
-        const latestPrice = meta?.regularMarketPrice || (indicator?.close && indicator.close[indicator.close.length - 1]);
-
-        if (latestPrice === undefined || latestPrice === null) {
-            return await fetchFromIsaham(tickerCode);
-        }
-
-        // Date in YYYY-MM-DD
-        const priceDate = new Date().toISOString().split('T')[0];
+        const highs = indicator?.high || [];
+        const lows = indicator?.low || [];
+        const dayHigh = meta?.regularMarketDayHigh || (highs.length > 0 ? Math.max(...highs.filter(h => h !== null)) : latestPrice);
+        const dayLow = meta?.regularMarketDayLow || (lows.length > 0 ? Math.min(...lows.filter(l => l !== null)) : latestPrice);
 
         return {
             open: parseFloat((meta.regularMarketOpen || indicator?.open?.[0] || latestPrice).toFixed(3)),
-            high: parseFloat((meta.regularMarketDayHigh || indicator?.high?.[0] || latestPrice).toFixed(3)),
-            low: parseFloat((meta.regularMarketDayLow || indicator?.low?.[0] || latestPrice).toFixed(3)),
+            high: parseFloat(Number(dayHigh).toFixed(3)),
+            low: parseFloat(Number(dayLow).toFixed(3)),
             close: parseFloat(latestPrice.toFixed(3)),
+            previousClose: meta.chartPreviousClose || meta.previousClose || null,
             volume: parseInt(meta.regularMarketVolume || indicator?.volume?.[0] || 0, 10),
             priceDate
         };

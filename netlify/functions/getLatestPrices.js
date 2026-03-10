@@ -1,6 +1,6 @@
-import { fetchStockData, fetchIntradayData } from './utils/scraper.js';
 import { supabase } from './utils/supabaseClient.js';
-import { analyzeStock } from './utils/indicators.js';
+import { analyzeIntraday } from './getIntradayAnalysisV2.js';
+import { buildTradePlan } from './utils/buildTradePlan.js';
 
 export const handler = async (event, context) => {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'POST required' };
@@ -13,12 +13,12 @@ export const handler = async (event, context) => {
             return { statusCode: 400, body: 'Missing or invalid tickers array' };
         }
 
-        console.log(`Fetching latest prices and indicators for ${tickers.length} tickers...`);
+        console.log(`Fetching latest comprehensive analysis for ${tickers.length} tickers...`);
 
-        // Fetch DB metadata for Bursa stocks to get numeric codes
+        // Fetch DB metadata for stocks
         const { data: stockInfoList } = await supabase
             .from('klse_stocks')
-            .select('ticker_full, ticker_code, company_name, market')
+            .select('ticker_full, ticker_code, company_name, market, shariah_status')
             .in('ticker_full', tickers);
 
         const stockMap = {};
@@ -26,81 +26,55 @@ export const handler = async (event, context) => {
             stockInfoList.forEach(s => { stockMap[s.ticker_full] = s; });
         }
 
-        // Fetch and Analyze in parallel
+        // Fetch and Analyze in parallel using analyzeIntraday to guarantee 100% sync with Modal
         const analysisPromises = tickers.map(async (ticker) => {
             try {
-                let yfSymbol = ticker;
                 const sInfo = stockMap[ticker];
 
-                if (sInfo && (sInfo.market === 'MYR' || sInfo.market === 'KLSE')) {
-                    // Normalise ticker_code: strip any trailing .KL suffix (e.g. '5126.KL' → '5126')
-                    const rawCode = (sInfo.ticker_code || '').replace(/\.KL$/i, '');
+                // Use the identical heavy-lifting analysis engine used by StockModal
+                const analysis = await analyzeIntraday(ticker, null, false);
 
-                    if (rawCode && /^\d+$/.test(rawCode)) {
-                        // Clean numeric code — use directly with .KL suffix
-                        yfSymbol = `${rawCode}.KL`;
-                    } else if (rawCode && /^0\d{3}PA$/i.test(rawCode)) {
-                        // Warrant/PA code — skip (Yahoo won't have it)
-                        yfSymbol = ticker; // let fetchStockData handle/fall back
-                    } else {
-                        // Alpha code (e.g. 'MHB.KL', 'KSL.KL') — use as-is and let
-                        // fetchStockData fall back to isaham.my if Yahoo returns nothing
-                        yfSymbol = ticker.endsWith('.KL') ? ticker : `${ticker.replace(/\.KL$/i, '')}.KL`;
-                    }
-                }
-
-                // Fetch 3 months of daily data to compute RSI and scores
-                // PLUS fetch a live quote to ensure the current price is accurate
-                const [history, basic] = await Promise.all([
-                    fetchIntradayData(yfSymbol, '1d', '3mo'),
-                    fetchStockData(yfSymbol)
-                ]);
-
-                if (!history || history.length === 0) {
+                if (!analysis || analysis.error || !analysis.liveStock) {
                     return {
                         ticker,
-                        close: basic?.close || null,
-                        volume: basic?.volume || null,
-                        indicators: null
+                        close: 0,
+                        score: 0,
+                        momentumScore: 0,
+                        snapshotScore10: 0,
+                        signals: ['DATA-LIMITED'],
+                        verdictLabel: 'NEUTRAL',
+                        systemVerdictText: 'Data terhad atau ralat memuat turun data.',
+                        isLiveAnalysis: false
                     };
                 }
 
-                // Add live quote as the last entry in history if it's more recent
-                const lastHistory = history[history.length - 1];
-                const lastHistoryDatePart = lastHistory.date.split('T')[0];
-
-                if (basic && basic.close) {
-                    if (lastHistoryDatePart !== basic.priceDate) {
-                        history.push({
-                            ...basic,
-                            date: basic.priceDate
-                        });
-                    } else {
-                        // Update today's candle if it exists
-                        history[history.length - 1] = {
-                            ...lastHistory,
-                            ...basic,
-                            date: lastHistory.date // keep original timestamp/date
-                        };
-                    }
-                }
-
-                // Perform full technical analysis
-                const analysis = analyzeStock({
-                    code: ticker,
-                    company: sInfo?.company_name || ticker,
-                    prices: history
+                // Generate full trade plan for official verdict
+                const plan = buildTradePlan({
+                    ticker: ticker,
+                    companyName: sInfo?.company_name || ticker,
+                    shariahStatus: sInfo?.shariah_status || 'Unknown',
+                    market: sInfo?.market || 'US',
+                    analysis: analysis
                 });
 
                 return {
                     ticker,
-                    close: analysis.close,
-                    volume: analysis.volume,
-                    score: analysis.score,
-                    momentumScore: analysis.momentumScore,
-                    rsi14: analysis.stats?.rsi14,
-                    dropdownPercent: analysis.stats?.dropdownPercent,
-                    signals: analysis.signals,
+                    close: analysis.currentPrice || analysis.liveStock?.close,
+                    volume: analysis.liveStock?.volume,
+                    score: analysis.liveStock?.score,
+                    momentumScore: analysis.liveStock?.momentumScore,
+                    snapshotScore10: analysis.liveStock?.score, // Snapshot score for table comparison
+                    rsi14: analysis.liveStock?.stats?.rsi14,
+                    dropdownPercent: analysis.liveStock?.stats?.dropdownPercent,
+                    levels: analysis.liveStock?.levels || {
+                        target1: (analysis.currentPrice || 0) * 1.05,
+                        stopPrice: (analysis.currentPrice || 0) * 0.95,
+                        rr1: 1.0
+                    },
+                    signals: analysis.liveStock?.signals || [],
+                    verdictLabel: plan.verdictLabel,
+                    systemVerdictText: plan.systemVerdictText || plan.advice, // Use plan.advice if text is empty
+                    plan: plan, // Include full plan object for complete fallback mapping
                     isLiveAnalysis: true,
                     timestamp: new Date().toISOString()
                 };

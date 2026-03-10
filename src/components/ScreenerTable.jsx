@@ -55,49 +55,50 @@ export function ScreenerTable({
                         const pos = positions[stock.ticker];
                         const isOwned = !!pos;
 
-                        // Logic similar to buildTradePlan for "Action"
-                        const confirmedCount = stock.scoreMTF || (stock.signals ? stock.signals.filter(s => ['UPTREND', 'MOMENTUM', 'REBOUND'].includes(s)).length : 0);
+                        // Identify Score more robustly (Server uses plan.snapshotScore10)
                         const rawScore = (activeTab === 'momentum') ? (stock.momentumScore || 0) :
-                            (activeTab === 'hybrid') ? Math.max(parseFloat(stock.score || 0), parseFloat(stock.momentumScore || 0)) :
+                            (activeTab === 'hybrid' || activeTab === 'bursa') ? Math.max(parseFloat(stock.score || 0), parseFloat(stock.momentumScore || 0), parseFloat(stock.snapshotScore10 || 0)) :
                                 (stock.score || 0);
                         const scoreNum = parseFloat(rawScore) || 0;
                         const currentPrice = parseFloat(stock.close) || 0;
 
-                        // Identify Verdict for Monitor
-                        let verdict = "NEUTRAL";
-                        let vColor = "text-gray-500 bg-gray-500/10 border-gray-500/20";
+                        // CLEAN & ETHICAL VERDICT LOGIC: Use the official verdict from the backend
+                        let verdict = stock.verdictLabel || stock.plan?.verdictLabel || "NEUTRAL";
+                        const rrNum = parseFloat(stock.levels?.rr1 || stock.plan?.levels?.rr1 || stock.plan?.trade?.rrRatio || 0);
 
+                        // Define prices for display and logic safety
+                        const fallbackTarget = currentPrice * 1.15;
+                        const fallbackStop = currentPrice * 0.95;
+                        const targetPrice = parseFloat(stock.levels?.target1 || stock.plan?.levels?.target1 || stock.plan?.trade?.tp1 || fallbackTarget);
+                        const stopPriceValue = parseFloat(stock.levels?.stopPrice || stock.plan?.levels?.stopPrice || stock.plan?.trade?.stopLoss || fallbackStop);
+
+                        // Special handling for owned positions (Holding/Exit logic)
                         if (isOwned) {
                             const sl = parseFloat(pos.stopLoss);
                             const tp = parseFloat(pos.targetPrice || (pos.entryPrice * 1.15));
+                            if (currentPrice <= sl) verdict = "EXIT (SL)";
+                            else if (currentPrice >= tp) verdict = "EXIT (TP)";
+                            else verdict = "HOLDING";
+                        }
 
-                            if (currentPrice <= sl) {
-                                verdict = "EXIT (SL)";
-                                vColor = "text-red-400 bg-red-500/10 border-red-500/30 animate-pulse";
-                            } else if (currentPrice >= tp) {
-                                verdict = "EXIT (TP)";
-                                vColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30 animate-pulse";
-                            } else {
-                                verdict = "HOLDING";
-                                vColor = "text-blue-400 bg-blue-500/10 border-blue-500/20";
-                            }
-                        } else {
-                            // Watchlist Logic (Synchronized with buildTradePlan)
-                            const isHighConviction = scoreNum >= 8.5 && confirmedCount >= 1;
-                            const isMTFConfirmed = confirmedCount >= 2;
-
-                            if (isMTFConfirmed || isHighConviction) {
-                                verdict = "GO";
-                                vColor = "text-emerald-400 bg-emerald-500/20 border-emerald-500/40 shadow-[0_0_15px_rgba(34,197,94,0.15)] animate-bounce-subtle";
-                            } else if (confirmedCount >= 1 || scoreNum >= 7.0) {
-                                verdict = "WAIT";
-                                vColor = "text-blue-400 bg-blue-500/10 border-blue-500/20";
-                            }
+                        // Display Colors based on the official verdict
+                        let vColor = "text-gray-500 bg-gray-500/10 border-gray-500/20";
+                        if (verdict?.includes('EXIT (SL)') || verdict === 'AVOID') {
+                            vColor = "text-red-400 bg-red-400/10 border-red-400/20";
+                            if (verdict?.includes('EXIT')) vColor += " animate-pulse";
+                        } else if (verdict?.includes('EXIT (TP)') || verdict === 'GO' || verdict === 'DOUBLE GO') {
+                            vColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+                            if (verdict === 'GO' || verdict === 'DOUBLE GO') vColor += " ring-1 ring-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]";
+                        } else if (verdict === 'WAIT' || verdict === 'HOLDING' || verdict === 'MONITOR') {
+                            vColor = "text-blue-400 bg-blue-500/10 border-blue-500/20";
                         }
 
                         // PL% Calculation
                         const plPercent = isOwned ? ((currentPrice - pos.entryPrice) / pos.entryPrice * 100) : null;
                         const daysHeld = isOwned && pos.buyDate ? differenceInDays(new Date(), new Date(pos.buyDate)) : null;
+
+                        // Get confirmedCount from plan if available, otherwise default to 0
+                        const confirmedCount = stock.plan?.multiTimeframe?.confirmedCount || 0;
 
                         return (
                             <tr key={stock.ticker} className={`group hover:bg-white/5 transition-all duration-150 ${isOwned ? 'bg-emerald-500/5' : ''} ${loading ? 'animate-pulse opacity-70 cursor-wait relative after:absolute after:inset-0 after:bg-gradient-to-r after:from-transparent after:via-white/5 after:to-transparent after:animate-scan' : ''}`}>
@@ -146,13 +147,13 @@ export function ScreenerTable({
                                         <div className="flex flex-col items-center gap-1">
                                             <div className={`
                                                 w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm border transition-all duration-500
-                                                ${stock.isLivePrice
+                                                ${(scoreNum >= 7.0 || verdict === 'GO')
                                                     ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
                                                     : 'bg-white/5 text-white border-white/5'}
                                             `}>
                                                 {scoreNum.toFixed(1)}
                                             </div>
-                                            {stock.isLivePrice && (
+                                            {(stock.isLivePrice || verdict === 'GO') && (
                                                 <span className="text-[7px] font-black text-emerald-500 uppercase tracking-widest animate-pulse">LATEST</span>
                                             )}
                                         </div>
@@ -197,13 +198,13 @@ export function ScreenerTable({
                                             <div className="flex items-center gap-1.5">
                                                 <Target className="w-3 h-3 text-emerald-500/50" />
                                                 <span className="text-[11px] font-bold text-emerald-500/50">
-                                                    {isOwned ? (pos.targetPrice?.toFixed(3) || '-') : (stock.levels?.target1?.toFixed(3) || '-')}
+                                                    {isOwned ? (pos.targetPrice?.toFixed(3) || '-') : (targetPrice ? targetPrice.toFixed(3) : '-')}
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-1.5 opacity-40">
                                                 <AlertOctagon className="w-3 h-3 text-red-500" />
                                                 <span className="text-[10px] font-bold text-white">
-                                                    {isOwned ? (pos.stopLoss?.toFixed(3) || '-') : (stock.levels?.stopPrice?.toFixed(3) || '-')}
+                                                    {isOwned ? (pos.stopLoss?.toFixed(3) || '-') : (stopPriceValue ? stopPriceValue.toFixed(3) : '-')}
                                                 </span>
                                             </div>
                                         </div>
@@ -220,16 +221,6 @@ export function ScreenerTable({
 
                                 <td className="p-4">
                                     <div className="flex items-center gap-3">
-                                        {/* Alignment Dots */}
-                                        <div className="flex gap-1">
-                                            {[1, 2, 3].map(i => (
-                                                <div
-                                                    key={i}
-                                                    className={`w-1.5 h-1.5 rounded-full ${i <= confirmedCount ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-white/10'}`}
-                                                    title={`${confirmedCount}/3 Aligned`}
-                                                />
-                                            ))}
-                                        </div>
                                         <div className="flex flex-wrap gap-1">
                                             {(stock.signals || []).slice(0, 2).map(sig => (
                                                 <span key={sig} className="px-1.5 py-0.5 bg-white/5 border border-white/5 rounded text-[8px] font-bold text-gray-500 uppercase tracking-tighter">

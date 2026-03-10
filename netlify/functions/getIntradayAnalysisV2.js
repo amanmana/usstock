@@ -278,7 +278,8 @@ export const analyzeIntraday = async (ticker, entryPrice, isOwned) => {
             liveStockResult = analyzeStock({
                 code: ticker,
                 company: '',
-                prices: history
+                prices: history,
+                previousClose: livePrice?.previousClose
             });
 
             if (liveStockResult) {

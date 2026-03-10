@@ -421,6 +421,8 @@ export function analyzeStock(stockData) {
         company,
         fullName: stockData.fullName || company,
         close: closeToday,
+        open: prices[len - 1]?.open || closeToday,
+        prevClose: stockData.previousClose || closeYesterday,
         volume: volumeToday,
         date: stockData.date,
         score: parseFloat(totalScore.toFixed(1)),

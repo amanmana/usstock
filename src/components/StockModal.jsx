@@ -114,7 +114,12 @@ const TradingViewWidget = ({ ticker, market, stock }) => {
 
     const tvSymbol = normalizeTradingViewSymbol(ticker, market, stock);
     const isBursa = tvSymbol.startsWith('MYX:');
-    const containerId = `tv-chart-${ticker.replace(/\./g, '-')}-${Math.floor(Math.random() * 1000)}`;
+
+    // Stabilize containerId so it doesn't change on every render
+    const containerId = React.useMemo(() =>
+        `tv-chart-${ticker.replace(/\./g, '-')}-${Math.floor(Math.random() * 10000)}`,
+        [ticker]
+    );
 
     useEffect(() => {
         if (isBursa) {
@@ -159,18 +164,39 @@ const TradingViewWidget = ({ ticker, market, stock }) => {
         };
 
         if (!window.TradingView) {
-            const script = document.createElement('script');
-            script.src = 'https://s3.tradingview.com/tv.js';
-            script.async = true;
-            script.onload = () => { if (isMounted) createWidget(); };
-            script.onerror = () => { if (isMounted) setError(true); };
-            document.head.appendChild(script);
+            // Check if script already exists to avoid multiple appends
+            if (!document.getElementById('tradingview-widget-script')) {
+                const script = document.createElement('script');
+                script.id = 'tradingview-widget-script';
+                script.src = 'https://s3.tradingview.com/tv.js';
+                script.async = true;
+                script.onload = () => { if (isMounted) createWidget(); };
+                script.onerror = () => { if (isMounted) setError(true); };
+                document.head.appendChild(script);
+            } else {
+                // If script is already there but window.TradingView is not yet ready, 
+                // we might need to wait or use a poller, but usually onload handles it for the first one.
+                // For subsequent ones, we just wait a bit.
+                const checkInterval = setInterval(() => {
+                    if (window.TradingView) {
+                        clearInterval(checkInterval);
+                        if (isMounted) createWidget();
+                    }
+                }, 100);
+                return () => {
+                    clearInterval(checkInterval);
+                    isMounted = false;
+                };
+            }
         } else {
             const timer = setTimeout(() => { if (isMounted) createWidget(); }, 250);
-            return () => clearTimeout(timer);
+            return () => {
+                clearTimeout(timer);
+                isMounted = false;
+            };
         }
         return () => { isMounted = false; };
-    }, [ticker, market, stock, containerId, isBursa, tvSymbol]);
+    }, [tvSymbol, containerId, isBursa]);
 
     if (isBursa) {
         return (
@@ -339,6 +365,8 @@ export function StockModal({
         ticker: stock.ticker,
         company_name: stock.company,
         price: stock.close,
+        open: stock.open,
+        prevClose: stock.prevClose || stock.previousClose,
         shariah_status: (stock.shariah || stock.isShariah) ? 'SHARIAH' : 'NON_SHARIAH',
         snapshotScore10: parseFloat(stock.score) || 0,
         verdictLabel: "WAIT",
@@ -669,19 +697,63 @@ export function StockModal({
                                             </div>
                                         </div>
 
-                                        <div className={`p-3 rounded-xl border-l-4 ${plan.verdictLabel?.includes('GO') ? 'bg-emerald-500/10 border-emerald-500/50' : (plan.verdictLabel === 'AVOID' || plan.verdictLabel?.includes('SELL') ? 'bg-red-500/10 border-red-500/50' : 'bg-indigo-500/10 border-indigo-500/50')}`}>
-                                            <p className="text-[13px] text-white leading-relaxed font-bold">
-                                                {plan.raw?.advice || "Tiada data intraday buat masa ini."}
-                                            </p>
-                                        </div>
+                                        {(() => {
+                                            const alignment = plan.alignment || 0;
+                                            const sentiment = plan.sentiment4h || 'NEUTRAL';
+
+                                            // Override text if owned
+                                            if (pos) {
+                                                const currentPrice = plan.price || stock.close;
+                                                const sl = parseFloat(pos.stopLoss);
+                                                const tp = parseFloat(pos.targetPrice || plan.trade.tp1);
+
+                                                if (currentPrice <= sl) {
+                                                    return (
+                                                        <div className="p-3 rounded-xl border-l-4 bg-red-500/10 border-red-500/50">
+                                                            <p className="text-[13px] font-bold text-red-400 leading-tight">
+                                                                BAHAYA: Harga jatuh bawah Stop Loss. Cadangan: EXIT Segera untuk lindungi modal.
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                } else if (currentPrice >= tp) {
+                                                    return (
+                                                        <div className="p-3 rounded-xl border-l-4 bg-emerald-500/10 border-emerald-500/50">
+                                                            <p className="text-[13px] font-bold text-emerald-400 leading-tight">
+                                                                TARGET DICAPAI: Ambil peluang untuk kunci keuntungan (Lock Profit) sekarang.
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <div className="p-3 rounded-xl border-l-4 bg-blue-500/10 border-blue-500/50">
+                                                            <p className="text-[13px] font-bold text-blue-300 leading-tight">
+                                                                PENGURUSAN AKTIF: Posisi masih dalam zon selamat. Kekal pegang (HOLD) mengikut pelan.
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                }
+                                            }
+
+                                            // Default entry logic
+                                            return (
+                                                <div className={`p-3 rounded-xl border-l-4 ${plan.verdictLabel?.includes('GO') ? 'bg-emerald-500/10 border-emerald-500/50' : (plan.verdictLabel === 'AVOID' ? 'bg-red-500/10 border-red-500/50' : 'bg-indigo-500/10 border-indigo-500/50')}`}>
+                                                    <p className={`text-[13px] font-bold leading-tight ${plan.verdictLabel?.includes('GO') ? 'text-emerald-400' : (plan.verdictLabel === 'AVOID' ? 'text-red-400' : 'text-indigo-300')}`}>
+                                                        {plan.systemVerdictText || (alignment >= 2 ? "READY TO GO: Isyarat teknikal selari pada pelbagai jangka masa." : "TUNGGU: Trend teknikal masih lemah. Pantau isyarat reversal.")}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })()}
 
                                         <div className="flex items-center justify-between pt-2">
                                             <div className="flex items-center gap-3">
-                                                <div className="flex flex-col">
+                                                <div className="flex flex-col items-center">
                                                     <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest leading-none mb-1 text-center">Price</span>
                                                     <span className="text-white font-black text-sm">{currency} {(parseFloat(plan.price) || 0).toFixed(3)}</span>
+                                                    {plan.open && (
+                                                        <span className="text-[8px] text-gray-400 font-bold uppercase mt-1">Open: {((parseFloat(plan.open) || 0).toFixed(3))}</span>
+                                                    )}
                                                 </div>
-                                                <div className="flex flex-col border-l border-white/10 pl-3">
+                                                <div className="flex flex-col border-l border-white/10 pl-3 items-center">
                                                     <span className="text-[9px] text-gray-500 uppercase font-bold tracking-widest leading-none mb-1 text-center">Sentiment 4H</span>
                                                     <span className={`text-sm font-black text-center ${plan.sentiment4h === 'Bullish' || plan.sentiment4h === 'Green' ? 'text-emerald-400' : 'text-red-400'}`}>
                                                         {plan.sentiment4h?.toUpperCase()}
@@ -792,48 +864,101 @@ export function StockModal({
                         <div className="space-y-6">
 
                             {/* Main Verdict Card - moved to top */}
-                            <div className={`p-6 rounded-3xl border shadow-2xl transition-all duration-500 ${plan.verdictLabel?.includes('GO') ? 'bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/10' : (plan.verdictLabel === 'AVOID' ? 'bg-red-500/10 border-red-500/20 shadow-red-500/10' : 'bg-primary/10 border-primary/20 shadow-primary/10')}`}>
-                                <div className="flex flex-col gap-6">
-                                    <div className="flex items-center gap-5">
-                                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-2xl transform rotate-3 ${plan.verdictLabel?.includes('GO') ? 'bg-emerald-500 text-white' : (plan.verdictLabel === 'AVOID' ? 'bg-red-500 text-white' : 'bg-primary text-white')}`}>
-                                            {plan.verdictLabel?.includes('GO') ? <TrendingUp className="w-8 h-8" /> : (plan.verdictLabel === 'AVOID' ? <TrendingDown className="w-8 h-8" /> : <Activity className="w-8 h-8" />)}
-                                        </div>
-                                        <div>
-                                            <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">System Verdict</div>
-                                            <div className={`text-3xl font-black tracking-tighter ${plan.verdictLabel?.includes('GO') ? 'text-emerald-400' : (plan.verdictLabel === 'AVOID' ? 'text-red-400' : 'text-primary')}`}>
-                                                {plan.verdictLabel}
-                                            </div>
-                                        </div>
-                                    </div>
+                            {/* Main Verdict Card - moved to top */}
+                            {(() => {
+                                let displayVerdict = plan.verdictLabel || "WAIT";
+                                let vColorClass = "bg-primary/10 border-primary/20 shadow-primary/10";
+                                let vLabelColorClass = "text-primary";
+                                let vIconBgClass = "bg-primary";
+                                let vIcon = <Activity className="w-8 h-8" />;
+                                let vAdvice = plan.systemVerdictText || (displayVerdict?.includes('GO') ? "Isyarat cukup syarat untuk entri mengikut strategi." : (displayVerdict === 'AVOID' ? "Nisbah risiko-ganjaran tidak menarik. Lebihkan tunai." : "Isyarat belum cukup kuat untuk keputusan beli. Tunggu 'alignment' berlaku."));
 
-                                    {/* Action Advice */}
-                                    <div className="w-full">
-                                        <div className="bg-black/20 backdrop-blur-md rounded-2xl p-4 border border-white/5">
-                                            <div className="flex items-start gap-3">
-                                                <div className="mt-1">
-                                                    {plan.verdictLabel?.includes('GO') ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Info className="w-4 h-4 text-primary" />}
+                                if (pos) {
+                                    const currentPrice = plan.price || stock.close;
+                                    const sl = parseFloat(pos.stopLoss);
+                                    const tp = parseFloat(pos.targetPrice || plan.trade.tp1);
+
+                                    if (currentPrice <= sl) {
+                                        displayVerdict = "EXIT (SL)";
+                                        vColorClass = "bg-red-500/10 border-red-500/20 shadow-red-500/10 animate-pulse";
+                                        vLabelColorClass = "text-red-400";
+                                        vIconBgClass = "bg-red-500";
+                                        vIcon = <TrendingDown className="w-8 h-8" />;
+                                        vAdvice = "POTONG RUGI: Harga sudah mencecah Stop Loss. Lindungi baki modal anda.";
+                                    } else if (currentPrice >= tp) {
+                                        displayVerdict = "EXIT (TP)";
+                                        vColorClass = "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/10 animate-bounce-subtle";
+                                        vLabelColorClass = "text-emerald-400";
+                                        vIconBgClass = "bg-emerald-500";
+                                        vIcon = <Zap className="w-8 h-8" />;
+                                        vAdvice = "AMBIL UNTUNG: Harga sudah mencecah Target Profit. Tahniah!";
+                                    } else {
+                                        displayVerdict = "HOLDING";
+                                        vColorClass = "bg-blue-500/10 border-blue-500/20 shadow-blue-500/10";
+                                        vLabelColorClass = "text-blue-400";
+                                        vIconBgClass = "bg-blue-500";
+                                        vIcon = <Activity className="w-8 h-8" />;
+                                        vAdvice = "KEKAL PEGANG: Posisi anda masih sihat. Pantau paras Stop Loss.";
+                                    }
+                                } else {
+                                    // Use plan verdict logic
+                                    if (displayVerdict?.includes('GO')) {
+                                        vColorClass = "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/10";
+                                        vLabelColorClass = "text-emerald-400";
+                                        vIconBgClass = "bg-emerald-500";
+                                        vIcon = <TrendingUp className="w-8 h-8" />;
+                                    } else if (displayVerdict === 'AVOID' || displayVerdict?.includes('SELL')) {
+                                        vColorClass = "bg-red-500/10 border-red-500/20 shadow-red-500/10";
+                                        vLabelColorClass = "text-red-400";
+                                        vIconBgClass = "bg-red-500";
+                                        vIcon = <TrendingDown className="w-8 h-8" />;
+                                    }
+                                }
+
+                                return (
+                                    <div className={`p-6 rounded-3xl border shadow-2xl transition-all duration-500 ${vColorClass}`}>
+                                        <div className="flex flex-col gap-6">
+                                            <div className="flex items-center gap-5">
+                                                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-2xl transform rotate-3 ${vIconBgClass} text-white`}>
+                                                    {vIcon}
                                                 </div>
                                                 <div>
-                                                    <p className="text-[13px] font-bold text-white leading-relaxed">
-                                                        {plan.systemVerdictText || (plan.verdictLabel?.includes('GO') ? "Isyarat cukup syarat untuk entri mengikut strategi." : (plan.verdictLabel === 'AVOID' ? "Nisbah risiko-ganjaran tidak menarik. Lebihkan tunai." : "Isyarat belum cukup kuat untuk keputusan beli. Tunggu 'alignment' berlaku."))}
-                                                    </p>
-                                                    {plan.trade.strategyLabel && (
-                                                        <div className="mt-2 inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] font-black text-gray-400 uppercase tracking-widest">
-                                                            Strategy: {plan.trade.strategyLabel}
+                                                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">System Verdict</div>
+                                                    <div className={`text-3xl font-black tracking-tighter ${vLabelColorClass}`}>
+                                                        {displayVerdict}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="w-full">
+                                                <div className="bg-black/20 backdrop-blur-md rounded-2xl p-4 border border-white/5">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="mt-1">
+                                                            {displayVerdict?.includes('GO') || displayVerdict?.includes('TP') ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Info className="w-4 h-4 text-blue-400" />}
                                                         </div>
-                                                    )}
+                                                        <div>
+                                                            <p className="text-[13px] font-bold text-white leading-relaxed">
+                                                                {vAdvice}
+                                                            </p>
+                                                            {plan.trade.strategyLabel && !pos && (
+                                                                <div className="mt-2 inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                                                                    Strategy: {plan.trade.strategyLabel}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
+                                );
+                            })()}
 
                             {/* Recommendation Card */}
                             {(() => {
                                 const verdict = plan.verdictLabel;
                                 const conviction = plan.convictionPct;
-                                const rrNum = plan.trade.rrRatio || 0;
+                                const rrNum = plan.trade?.rrRatio || 0;
 
                                 let vColor = "bg-gray-500/10 text-gray-400 border-gray-500/20";
                                 let vIcon = <Activity className="w-5 h-5" />;
@@ -924,38 +1049,77 @@ export function StockModal({
                                                     <span className="text-[9px] font-black text-white uppercase tracking-[0.15em] animate-pulse">Recalculating</span>
                                                 </div>
                                             )}
-                                            <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Technical Decision</h4>
-                                            <div className="w-full flex justify-center mb-4">
-                                                <GaugeMeter
-                                                    value={verdictValue}
-                                                    label={verdict}
-                                                    isPortfolio={false}
-                                                    color={vColor?.includes('emerald') ? '#10b981' : (vColor?.includes('red') ? '#ef4444' : (vColor?.includes('orange') || vColor?.includes('yellow') ? '#fbbf24' : '#94a3b8'))}
-                                                    loading={loadingTradePlan}
-                                                />
-                                            </div>
+                                            {(() => {
+                                                const verdictLabel = plan.verdictLabel || "NEUTRAL";
+                                                const conviction = plan.convictionPct || 0;
+                                                const currentPrice = plan.price || stock.close;
+                                                const confirmedCount = plan.multiTimeframe?.confirmedCount || 0;
 
-                                            <div className="w-full flex justify-center mb-4">
-                                                {pos?.quantity > 0 ? (
-                                                    /* Portfolio Action Gauge */
-                                                    <GaugeMeter
-                                                        value={verdictValue}
-                                                        label="POSITION ACTION"
-                                                        isPortfolio={true}
-                                                        color="#6366f1"
-                                                        loading={loadingTradePlan}
-                                                    />
-                                                ) : (
-                                                    /* Standard Conviction Gauge */
-                                                    <GaugeMeter
-                                                        value={plan.convictionPct}
-                                                        label="CONVICTION"
-                                                        variant="conviction"
-                                                        color="#6366f1"
-                                                        loading={loadingTradePlan}
-                                                    />
-                                                )}
-                                            </div>
+                                                let topValue = 40;
+                                                let topLabel = verdictLabel;
+                                                let topColor = "#f59e0b"; // Default Neutral
+
+                                                if (verdictLabel.includes('EXIT (SL)') || verdictLabel === 'AVOID') {
+                                                    topValue = 12.5;
+                                                    topColor = "#ef4444";
+                                                }
+                                                else if (verdictLabel.includes('EXIT (TP)') || verdictLabel === 'GO' || verdictLabel === 'DOUBLE GO') {
+                                                    topValue = 87.5;
+                                                    topColor = "#10b981";
+                                                }
+                                                else if (verdictLabel === 'HOLDING' || verdictLabel === 'WAIT' || verdictLabel?.includes('MONITOR')) {
+                                                    topValue = 62.5;
+                                                    topColor = "#3b82f6";
+                                                }
+
+                                                let bottomValue = conviction;
+                                                let bottomLabel = "CONVICTION";
+
+                                                if (pos) {
+                                                    bottomLabel = "POSITION ACTION";
+                                                    const sl = parseFloat(pos.stopLoss);
+                                                    const tp = parseFloat(pos.targetPrice || plan.trade?.tp1);
+
+                                                    if (currentPrice <= sl) bottomValue = 12.5;
+                                                    else if (currentPrice >= tp) bottomValue = 87.5;
+                                                    else bottomValue = 62.5;
+                                                } else {
+                                                    const isAvoid = verdictLabel === 'AVOID' || verdictLabel?.includes('SELL');
+                                                    const isBearishConviction = (plan.sentiment4h === 'BEARISH' || confirmedCount === 0);
+
+                                                    if (isAvoid && isBearishConviction) {
+                                                        bottomValue = Math.min(bottomValue, 15);
+                                                    } else if (isAvoid || isBearishConviction) {
+                                                        bottomValue = Math.min(bottomValue, 40);
+                                                    }
+                                                }
+
+                                                return (
+                                                    <div className="flex flex-col items-center gap-8 py-4">
+                                                        <div className="w-full flex flex-col items-center">
+                                                            <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Technical Decision</h4>
+                                                            <GaugeMeter
+                                                                value={topValue}
+                                                                label={topLabel}
+                                                                color={topColor}
+                                                                loading={loadingTradePlan}
+                                                                isPortfolio={false}
+                                                            />
+                                                        </div>
+
+                                                        <div className="w-full flex flex-col items-center">
+                                                            <GaugeMeter
+                                                                value={bottomValue}
+                                                                label={bottomLabel}
+                                                                color={bottomValue < 30 ? "#ef4444" : "#6366f1"}
+                                                                loading={loadingTradePlan}
+                                                                isPortfolio={!!pos}
+                                                                variant={pos ? null : "conviction"}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
 
                                             {/* Status Boxes */}
                                             <div className="w-full grid grid-cols-2 gap-4 mt-6">
