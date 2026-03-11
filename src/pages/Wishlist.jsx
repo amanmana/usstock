@@ -276,7 +276,7 @@ const WishlistPage = () => {
                             positions={positions}
                             activeTab="hybrid"
                             variant="wishlist"
-                            analyzingTicker={analyzingTicker}
+                            analyzingTicker={filteringTicker}
                         />
                     </div>
                 )}

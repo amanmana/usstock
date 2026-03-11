@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, Heart, ExternalLink, Bell, Activity, TrendingUp, TrendingDown, Target, Clock, AlertOctagon, CheckCircle, Zap } from 'lucide-react';
+import { Eye, Heart, ExternalLink, Bell, Activity, TrendingUp, TrendingDown, Target, Clock, AlertOctagon, CheckCircle, Zap, Loader2 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 
 export function ScreenerTable({
