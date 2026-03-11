@@ -36,7 +36,8 @@ const WishlistPage = () => {
     const [isFiltering, setIsFiltering] = useState(false);
     const [filteringTicker, setFilteringTicker] = useState(null);
     const [selectedStock, setSelectedStock] = useState(null);
-    const [activeTab, setActiveTab] = useState('Wishlist');
+    const [activeMenu, setActiveMenu] = useState('Wishlist');
+    const [marketTab, setMarketTab] = useState('Bursa');
 
     const { favouriteTickers, favouriteDetails, toggleFavourite, toggleAlert } = useFavourites();
     const { positions, addPosition, removePosition, sellPosition } = usePositions();
@@ -155,6 +156,11 @@ const WishlistPage = () => {
 
     const displayResults = getSortedDisplayList();
 
+    const bursaResults = displayResults.filter(s => s.market === 'MYR' || s.market === 'KLSE' || s.ticker?.endsWith('.KL'));
+    const usResults = displayResults.filter(s => !(s.market === 'MYR' || s.market === 'KLSE' || s.ticker?.endsWith('.KL')));
+
+    const activeResults = marketTab === 'Bursa' ? bursaResults : usResults;
+
     return (
         <div className="min-h-screen bg-background text-text-primary font-sans p-6 md:p-12 pb-24">
             <div className="max-w-7xl mx-auto">
@@ -256,10 +262,21 @@ const WishlistPage = () => {
                 ) : (
                     <div className="space-y-6 animate-in fade-in duration-700">
                         <div className="flex items-center justify-between px-2">
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Senarai Calon</span>
-                                <span className="px-2 py-0.5 bg-white/5 rounded-full text-[10px] font-bold text-white border border-white/5">{displayResults.length}</span>
+                            <div className="flex bg-surfaceHighlight/30 p-1 rounded-2xl border border-white/5">
+                                <button
+                                    onClick={() => setMarketTab('Bursa')}
+                                    className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${marketTab === 'Bursa' ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                                >
+                                    Bursa ({bursaResults.length})
+                                </button>
+                                <button
+                                    onClick={() => setMarketTab('US')}
+                                    className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${marketTab === 'US' ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                                >
+                                    US ({usResults.length})
+                                </button>
                             </div>
+
                             {isFiltering && (
                                 <div className="flex items-center gap-2">
                                     <span className="text-[10px] font-bold text-primary uppercase animate-pulse">Syncing Live Data...</span>
@@ -268,13 +285,14 @@ const WishlistPage = () => {
                         </div>
 
                         <ScreenerTable
-                            data={displayResults}
+                            data={activeResults}
                             onView={setSelectedStock}
                             onToggleFavourite={toggleFavourite}
                             favouriteTickers={favouriteTickers}
                             favouriteDetails={favouriteDetails}
                             positions={positions}
                             activeTab="hybrid"
+                            market={marketTab === 'Bursa' ? 'KLSE' : 'USD'}
                             variant="wishlist"
                             analyzingTicker={filteringTicker}
                         />
