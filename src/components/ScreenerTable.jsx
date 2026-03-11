@@ -41,7 +41,7 @@ export function ScreenerTable({
                         <th className="p-4 pl-6 w-10"></th>
                         <th className="p-4">Ticker / Company</th>
                         {(isMonitor || isWishlist) && <th className="p-4 text-center">Action</th>}
-                        {(!isMonitor && !isWishlist) && <th className="p-4 text-center">Score</th>}
+                        <th className="p-4 text-center">Score</th>
                         <th className="p-4 text-center">{isMonitor ? 'Performance' : 'Strategy'}</th>
                         <th className="p-4 text-right">Price / DD%</th>
                         {isMonitor && <th className="p-4 text-center">Targets / SL</th>}
@@ -154,23 +154,21 @@ export function ScreenerTable({
                                     </td>
                                 )}
 
-                                {(!isMonitor && !isWishlist) && (
-                                    <td className="p-4 text-center">
-                                        <div className="flex flex-col items-center gap-1">
-                                            <div className={`
+                                <td className="p-4 text-center">
+                                    <div className="flex flex-col items-center gap-1">
+                                        <div className={`
                                                 w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm border transition-all duration-500
                                                 ${(scoreNum >= 7.0 || verdict === 'GO')
-                                                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
-                                                    : 'bg-white/5 text-white border-white/5'}
+                                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+                                                : 'bg-white/5 text-white border-white/5'}
                                             `}>
-                                                {scoreNum.toFixed(1)}
-                                            </div>
-                                            {(stock.isLivePrice || verdict === 'GO') && (
-                                                <span className="text-[7px] font-black text-emerald-500 uppercase tracking-widest animate-pulse">LATEST</span>
-                                            )}
+                                            {scoreNum.toFixed(1)}
                                         </div>
-                                    </td>
-                                )}
+                                        {(stock.isLivePrice || verdict === 'GO') && (
+                                            <span className="text-[7px] font-black text-emerald-500 uppercase tracking-widest animate-pulse">LATEST</span>
+                                        )}
+                                    </div>
+                                </td>
 
                                 <td className="p-4 text-center">
                                     {isOwned ? (

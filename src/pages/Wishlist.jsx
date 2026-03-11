@@ -60,8 +60,12 @@ const WishlistPage = () => {
             if (market === 'US' && (s.market === 'MYR' || s.market === 'KLSE')) return false;
             if (market === 'Bursa' && !(s.market === 'MYR' || s.market === 'KLSE')) return false;
 
-            const score = Math.max(parseFloat(s.score || 0), parseFloat(s.momentumScore || 0));
-            return score >= 7 && score <= 9.5; // Up to 9.5 to catch higher end of 9
+            const score = Math.max(
+                parseFloat(s.score || 0),
+                parseFloat(s.momentumScore || 0),
+                parseFloat(s.snapshotScore10 || 0)
+            );
+            return score >= 6.8 && score <= 10; // Catching borderline 7s and max scores
         });
 
         // Add to wishlist without duplicates
