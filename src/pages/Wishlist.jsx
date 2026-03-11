@@ -264,16 +264,16 @@ const WishlistPage = () => {
                         <div className="flex items-center justify-between px-2">
                             <div className="flex bg-surfaceHighlight/30 p-1 rounded-2xl border border-white/5">
                                 <button
-                                    onClick={() => setMarketTab('Bursa')}
-                                    className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${marketTab === 'Bursa' ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                                >
-                                    Bursa ({bursaResults.length})
-                                </button>
-                                <button
                                     onClick={() => setMarketTab('US')}
                                     className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${marketTab === 'US' ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
                                 >
                                     US ({usResults.length})
+                                </button>
+                                <button
+                                    onClick={() => setMarketTab('Bursa')}
+                                    className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${marketTab === 'Bursa' ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+                                >
+                                    Bursa ({bursaResults.length})
                                 </button>
                             </div>
 
