@@ -12,7 +12,8 @@ export function ScreenerTable({
     positions = {},
     market = 'USD',
     variant = 'standard', // 'standard', 'monitor', or 'wishlist'
-    loading = false
+    loading = false,
+    analyzingTicker = null
 }) {
     if (!data || data.length === 0) {
         return (
@@ -52,8 +53,10 @@ export function ScreenerTable({
                 <tbody className="divide-y divide-border/50">
                     {data.map((stock) => {
                         if (!stock) return null;
-                        const isFavourited = favouriteTickers.includes(stock.ticker);
-                        const pos = positions[stock.ticker];
+                        const ticker = stock.ticker;
+                        const isAnalyzing = analyzingTicker === ticker;
+                        const isFavourited = favouriteTickers.includes(ticker);
+                        const pos = positions[ticker];
                         const isOwned = !!pos;
 
                         // Identify Score more robustly (Server uses plan.snapshotScore10)
@@ -102,7 +105,15 @@ export function ScreenerTable({
                         const confirmedCount = stock.plan?.multiTimeframe?.confirmedCount || 0;
 
                         return (
-                            <tr key={stock.ticker} className={`group hover:bg-white/5 transition-all duration-150 ${isOwned ? 'bg-emerald-500/5' : ''} ${loading ? 'animate-pulse opacity-70 cursor-wait relative after:absolute after:inset-0 after:bg-gradient-to-r after:from-transparent after:via-white/5 after:to-transparent after:animate-scan' : ''}`}>
+                            <tr key={ticker} className={`group hover:bg-white/5 transition-all duration-150 relative ${isOwned ? 'bg-emerald-500/5' : ''} ${loading ? 'animate-pulse opacity-70 cursor-wait after:absolute after:inset-0 after:bg-gradient-to-r after:from-transparent after:via-white/5 after:to-transparent after:animate-scan' : ''}`}>
+                                {isAnalyzing && (
+                                    <td colSpan="10" className="absolute inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center rounded-xl overflow-hidden border border-blue-500/30">
+                                        <div className="flex items-center gap-4 px-6 py-2.5 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-400 font-black text-xs uppercase tracking-[0.2em] shadow-[0_0_30px_rgba(59,130,246,0.2)] animate-in fade-in zoom-in duration-300">
+                                            <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                                            <span>Analisa Sedang Dibuat...</span>
+                                        </div>
+                                    </td>
+                                )}
                                 <td className="p-4 pl-6">
                                     <button
                                         onClick={(e) => {
