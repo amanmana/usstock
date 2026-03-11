@@ -21,6 +21,7 @@ import { useFavourites } from '../hooks/useFavourites';
 import { ScreenerTable } from '../components/ScreenerTable';
 import { StockModal } from '../components/StockModal';
 import { usePositions } from '../hooks/usePositions';
+import { supabase } from '../lib/supabase';
 
 const WishlistPage = () => {
     const navigate = useNavigate();
@@ -47,25 +48,67 @@ const WishlistPage = () => {
         localStorage.setItem('brs_wishlist', JSON.stringify(wishlist));
     }, [wishlist]);
 
+    const [allResults, setAllResults] = useState([]);
+
     // Force fetch all data once to have hybrid candidates ready
     useEffect(() => {
-        refetch('universe_all_real');
-    }, []);
+        const loadUniverses = async () => {
+            try {
+                // Fetch US results
+                const { data: usData } = await supabase
+                    .from('screener_results_cache')
+                    .select('results_json')
+                    .eq('universe', 'universe_us_real')
+                    .order('as_of_date', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                // Fetch Bursa results
+                const { data: myrData } = await supabase
+                    .from('screener_results_cache')
+                    .select('results_json')
+                    .eq('universe', 'universe_myr_real')
+                    .order('as_of_date', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                const combined = [
+                    ...(usData?.results_json || []),
+                    ...(myrData?.results_json || [])
+                ];
+
+                setAllResults(combined);
+            } catch (e) {
+                console.error("Error loading universes for Wishlist:", e);
+                // Fallback to the hook's results if something fails
+                if (results && results.length > 0) setAllResults(results);
+            }
+        };
+
+        loadUniverses();
+    }, [results]);
 
     const addHybridStocks = (market) => {
-        if (!results) return;
+        const sourceData = allResults.length > 0 ? allResults : (results || []);
+        if (sourceData.length === 0) return;
 
-        // Filter Score 7-9
-        const candidates = results.filter(s => {
-            if (market === 'US' && (s.market === 'MYR' || s.market === 'KLSE')) return false;
-            if (market === 'Bursa' && !(s.market === 'MYR' || s.market === 'KLSE')) return false;
+        // Filter Score 7-10
+        const candidates = sourceData.filter(s => {
+            if (!s) return false;
 
-            const score = Math.max(
+            // Market Filter
+            const isBursa = s.market === 'MYR' || s.market === 'KLSE' || s.ticker?.endsWith('.KL');
+            if (market === 'US' && isBursa) return false;
+            if (market === 'Bursa' && !isBursa) return false;
+
+            // Score Filter (from Hybrid logic)
+            const scoreNum = Math.max(
                 parseFloat(s.score || 0),
                 parseFloat(s.momentumScore || 0),
                 parseFloat(s.snapshotScore10 || 0)
             );
-            return score >= 6.8 && score <= 10; // Catching borderline 7s and max scores
+
+            return scoreNum >= 7.0 && scoreNum <= 10.0;
         });
 
         // Add to wishlist without duplicates
