@@ -133,13 +133,62 @@ const WishlistPage = () => {
         }
     };
 
+    const getSortedDisplayList = () => {
+        return wishlist
+            .map(ticker => {
+                const resultsSource = allResults.length > 0 ? allResults : (results || []);
+                const found = resultsSource.find(r => r.ticker === ticker);
+                const analyzed = analyzedStocks[ticker];
+
+                if (found || analyzed) {
+                    return {
+                        ...(found || {}),
+                        ...(analyzed || {}),
+                        ticker // ensure ticker is preserved
+                    };
+                }
+                return { ticker, isPending: true };
+            })
+            .filter(s => {
+                // If it has been analyzed, remove AVOID
+                if (s.verdictLabel === 'AVOID') return false;
+                return true;
+            })
+            .sort((a, b) => {
+                const priority = { 'DOUBLE GO': 4, 'GO': 3, 'WAIT': 2, 'MONITOR': 1, 'NEUTRAL': 0 };
+
+                // 1. Verdict Priority
+                const vA = a.verdictLabel || 'NEUTRAL';
+                const vB = b.verdictLabel || 'NEUTRAL';
+                if (priority[vB] !== priority[vA]) return priority[vB] - priority[vA];
+
+                // 2. Alignment Priority for WAIT
+                if (vA === 'WAIT' && vB === 'WAIT') {
+                    const alignA = a.plan?.multiTimeframe?.confirmedCount || 0;
+                    const alignB = b.plan?.multiTimeframe?.confirmedCount || 0;
+                    return alignB - alignA;
+                }
+
+                // 3. Score
+                const scoreA = Math.max(parseFloat(a.score || 0), parseFloat(a.momentumScore || 0), parseFloat(a.snapshotScore10 || 0));
+                const scoreB = Math.max(parseFloat(b.score || 0), parseFloat(b.momentumScore || 0), parseFloat(b.snapshotScore10 || 0));
+                return scoreB - scoreA;
+            });
+    };
+
+    const displayResults = getSortedDisplayList();
+    const bursaResults = displayResults.filter(s => s.market === 'MYR' || s.market === 'KLSE' || s.ticker?.endsWith('.KL'));
+    const usResults = displayResults.filter(s => !(s.market === 'MYR' || s.market === 'KLSE' || s.ticker?.endsWith('.KL')));
+    const activeResults = marketTab === 'Bursa' ? bursaResults : usResults;
+
     const runSequentialFilter = async () => {
-        if (wishlist.length === 0 || isFiltering) return;
+        const targetTickers = activeResults.map(s => s.ticker);
+        if (targetTickers.length === 0 || isFiltering) return;
 
         setIsFiltering(true);
         const updatedResults = { ...analyzedStocks };
 
-        for (const ticker of wishlist) {
+        for (const ticker of targetTickers) {
             setFilteringTicker(ticker);
             try {
                 // Call getLatestPrices for a single ticker to ensure 100% accuracy and one-by-one processing
@@ -169,44 +218,6 @@ const WishlistPage = () => {
         setIsFiltering(false);
     };
 
-    // Ranking and Filtering View
-    const getSortedDisplayList = () => {
-        const list = wishlist.map(t => analyzedStocks[t] || { ticker: t, company: 'Loading...', score: 0, loading: true });
-
-        return list
-            .filter(s => {
-                // If it has been analyzed, remove AVOID
-                if (s.verdictLabel === 'AVOID') return false;
-                return true;
-            })
-            .sort((a, b) => {
-                const priority = { 'DOUBLE GO': 4, 'GO': 3, 'WAIT': 2, 'MONITOR': 1, 'NEUTRAL': 0 };
-
-                // 1. Verdict Priority
-                const vA = a.verdictLabel || 'NEUTRAL';
-                const vB = b.verdictLabel || 'NEUTRAL';
-                if (priority[vB] !== priority[vA]) return priority[vB] - priority[vA];
-
-                // 2. Alignment Priority for WAIT
-                if (vA === 'WAIT' && vB === 'WAIT') {
-                    const alignA = a.plan?.multiTimeframe?.confirmedCount || 0;
-                    const alignB = b.plan?.multiTimeframe?.confirmedCount || 0;
-                    return alignB - alignA;
-                }
-
-                // 3. Score
-                const scoreA = Math.max(parseFloat(a.score || 0), parseFloat(a.momentumScore || 0));
-                const scoreB = Math.max(parseFloat(b.score || 0), parseFloat(b.momentumScore || 0));
-                return scoreB - scoreA;
-            });
-    };
-
-    const displayResults = getSortedDisplayList();
-
-    const bursaResults = displayResults.filter(s => s.market === 'MYR' || s.market === 'KLSE' || s.ticker?.endsWith('.KL'));
-    const usResults = displayResults.filter(s => !(s.market === 'MYR' || s.market === 'KLSE' || s.ticker?.endsWith('.KL')));
-
-    const activeResults = marketTab === 'Bursa' ? bursaResults : usResults;
 
     return (
         <div className="min-h-screen bg-background text-text-primary font-sans p-6 md:p-12 pb-24">
@@ -273,11 +284,11 @@ const WishlistPage = () => {
 
                         <button
                             onClick={runSequentialFilter}
-                            disabled={isFiltering || wishlist.length === 0}
+                            disabled={isFiltering || activeResults.length === 0}
                             className={`
                                 flex items-center gap-3 px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-2xl
                                 ${isFiltering ? 'bg-gray-800 text-gray-600 cursor-wait' : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20 active:scale-95'}
-                                ${wishlist.length === 0 ? 'opacity-50 grayscale cursor-not-allowed' : ''}
+                                ${activeResults.length === 0 ? 'opacity-50 grayscale cursor-not-allowed' : ''}
                             `}
                         >
                             {isFiltering ? (
@@ -296,12 +307,12 @@ const WishlistPage = () => {
                 </div>
 
                 {/* Table Content */}
-                {wishlist.length === 0 ? (
+                {activeResults.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-24 bg-surfaceHighlight/5 rounded-[3rem] border border-dashed border-white/10">
                         <div className="p-8 bg-white/5 rounded-full mb-6">
                             <Star className="w-12 h-12 text-gray-800" />
                         </div>
-                        <h3 className="text-2xl font-bold text-white mb-2">Wishlist Masih Kosong</h3>
+                        <h3 className="text-2xl font-bold text-white mb-2">Tiada Saham {marketTab}</h3>
                         <p className="text-gray-500 max-w-sm text-center">
                             Klik butang "Add Hybrid" di atas untuk memulakan pemantauan saham skor tinggi.
                         </p>
