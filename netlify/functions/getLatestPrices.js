@@ -59,6 +59,7 @@ export const handler = async (event, context) => {
 
                 return {
                     ticker,
+                    company: sInfo?.company_name || ticker,
                     close: analysis.currentPrice || analysis.liveStock?.close,
                     volume: analysis.liveStock?.volume,
                     score: analysis.liveStock?.score,

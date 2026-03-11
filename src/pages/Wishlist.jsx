@@ -103,8 +103,11 @@ const WishlistPage = () => {
                 if (res.ok) {
                     const data = await res.json();
                     if (data && data[0]) {
-                        updatedResults[ticker] = data[0];
-                        setAnalyzedStocks(prev => ({ ...prev, [ticker]: data[0] }));
+                        updatedResults[ticker] = { ...updatedResults[ticker], ...data[0] };
+                        setAnalyzedStocks(prev => ({
+                            ...prev,
+                            [ticker]: { ...prev[ticker], ...data[0] }
+                        }));
                     }
                 }
                 // Small delay to prevent rate limits and show visual progress
