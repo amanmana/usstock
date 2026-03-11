@@ -8,6 +8,7 @@ import AdviceJournal from './pages/AdviceJournal';
 import TradeLog from './pages/TradeLog';
 import Footer from './components/Footer';
 
+import Wishlist from './pages/Wishlist';
 import StockManager from './pages/StockManager';
 
 import Login from './pages/Login';
@@ -33,6 +34,7 @@ function App() {
                 <Route path="/favourites" element={<Favourites />} />
                 <Route path="/tradelog" element={<TradeLog />} />
                 <Route path="/journal" element={<AdviceJournal />} />
+                <Route path="/wishlist" element={<Wishlist />} />
                 <Route path="/stock-manager" element={<StockManager />} />
             </Routes>
             <Footer />

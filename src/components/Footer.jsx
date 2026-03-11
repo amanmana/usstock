@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Heart, Users, Book, HelpCircle, LayoutDashboard, ClipboardCheck, TrendingUp, Settings } from 'lucide-react';
+import { Heart, Users, Book, HelpCircle, LayoutDashboard, ClipboardCheck, TrendingUp, Settings, Star } from 'lucide-react';
 
 const Footer = () => {
     const location = useLocation();
@@ -10,6 +10,7 @@ const Footer = () => {
         { to: '/bursa', label: 'Bursa 🇲🇾', icon: <TrendingUp className="w-3.5 h-3.5" />, color: 'emerald' },
         { to: '/favourites', label: 'Kegemaran', icon: <Heart className="w-3.5 h-3.5 fill-red-500 text-red-500" />, color: 'red' },
         { to: '/tradelog', label: 'Rekod Trade', icon: <TrendingUp className="w-3.5 h-3.5" />, color: 'orange' },
+        { to: '/wishlist', label: 'Wishlist', icon: <Star className="w-3.5 h-3.5" />, color: 'blue' },
         { to: '/help', label: 'Bantuan', icon: <HelpCircle className="w-3.5 h-3.5" />, color: 'primary' },
         { to: '/journal', label: 'Buku Strategi', icon: <Book className="w-3.5 h-3.5" />, color: 'purple' },
         { to: '/stock-manager', label: 'Urus Saham', icon: <Settings className="w-3.5 h-3.5" />, color: 'indigo' },
