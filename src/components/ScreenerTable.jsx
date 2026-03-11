@@ -11,7 +11,7 @@ export function ScreenerTable({
     activeTab = 'rebound',
     positions = {},
     market = 'USD',
-    variant = 'standard', // 'standard' or 'monitor'
+    variant = 'standard', // 'standard', 'monitor', or 'wishlist'
     loading = false
 }) {
     if (!data || data.length === 0) {
@@ -29,6 +29,7 @@ export function ScreenerTable({
     }
 
     const isMonitor = variant === 'monitor';
+    const isWishlist = variant === 'wishlist';
     const currency = (market === 'MYR' || market === 'KLSE' || data[0]?.market === 'MYR' || data[0]?.market === 'KLSE') ? 'RM' : 'USD';
 
     return (
@@ -38,8 +39,8 @@ export function ScreenerTable({
                     <tr>
                         <th className="p-4 pl-6 w-10"></th>
                         <th className="p-4">Ticker / Company</th>
-                        {isMonitor && <th className="p-4 text-center">Action</th>}
-                        {!isMonitor && <th className="p-4 text-center">Score</th>}
+                        {(isMonitor || isWishlist) && <th className="p-4 text-center">Action</th>}
+                        {(!isMonitor && !isWishlist) && <th className="p-4 text-center">Score</th>}
                         <th className="p-4 text-center">{isMonitor ? 'Performance' : 'Strategy'}</th>
                         <th className="p-4 text-right">Price / DD%</th>
                         {isMonitor && <th className="p-4 text-center">Targets / SL</th>}
@@ -133,7 +134,7 @@ export function ScreenerTable({
                                     </div>
                                 </td>
 
-                                {isMonitor && (
+                                {(isMonitor || isWishlist) && (
                                     <td className="p-4 text-center">
                                         <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-black text-[10px] tracking-widest uppercase ${vColor}`}>
                                             {verdict.includes('EXIT') ? <AlertOctagon className="w-3 h-3" /> : (verdict === 'GO' ? <Zap className="w-3 h-3 fill-current" /> : null)}
@@ -142,7 +143,7 @@ export function ScreenerTable({
                                     </td>
                                 )}
 
-                                {!isMonitor && (
+                                {(!isMonitor && !isWishlist) && (
                                     <td className="p-4 text-center">
                                         <div className="flex flex-col items-center gap-1">
                                             <div className={`

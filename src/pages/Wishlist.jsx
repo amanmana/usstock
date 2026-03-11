@@ -272,7 +272,7 @@ const WishlistPage = () => {
                             favouriteDetails={favouriteDetails}
                             positions={positions}
                             activeTab="hybrid"
-                            variant="standard"
+                            variant="wishlist"
                         />
                     </div>
                 )}
