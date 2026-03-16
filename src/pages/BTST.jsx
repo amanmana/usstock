@@ -9,10 +9,30 @@ const BTST = () => {
     const [selectedStock, setSelectedStock] = useState(null);
     const [ownedTickers, setOwnedTickers] = useState(new Set());
     const [isScanning, setIsScanning] = useState(false);
+    const [lastAutoUpdate, setLastAutoUpdate] = useState(null);
 
     useEffect(() => {
         fetchLatestBTST();
         fetchOwnedPositions();
+
+        // Setup auto-refresh every 5 minutes during 3:30 PM - 5:00 PM
+        const interval = setInterval(() => {
+            const now = new Date();
+            const hour = now.getHours();
+            const min = now.getMinutes();
+            const day = now.getDay(); // 1-5 (Mon-Fri)
+
+            // Bursa Time: 3:30 PM (15:30) to 5:00 PM (17:00)
+            const isBursaOpen = day >= 1 && day <= 5;
+            const isCloseWindow = (hour === 15 && min >= 30) || (hour === 16);
+
+            if (isBursaOpen && isCloseWindow) {
+                console.log('Auto-refreshing BTST scan...');
+                handleRunScan(true); // Run silent scan
+            }
+        }, 5 * 60 * 1000); // 5 minutes
+
+        return () => clearInterval(interval);
     }, []);
 
     const fetchLatestBTST = async () => {
@@ -20,6 +40,7 @@ const BTST = () => {
             const response = await fetch('/.netlify/functions/getBtstLatest');
             const data = await response.json();
             setSnapshot(data);
+            setLastAutoUpdate(new Date());
         } catch (err) {
             setError('Gagal memuatkan data BTST.');
         } finally {
@@ -40,9 +61,9 @@ const BTST = () => {
         }
     };
 
-    const handleRunScan = async () => {
+    const handleRunScan = async (isSilent = false) => {
         try {
-            setIsScanning(true);
+            if (!isSilent) setIsScanning(true);
             const response = await fetch('/.netlify/functions/btstScan', { method: 'POST' });
             if (response.ok) {
                 await fetchLatestBTST();
@@ -50,7 +71,7 @@ const BTST = () => {
         } catch (err) {
             console.error('Ralat semasa imbasan:', err);
         } finally {
-            setIsScanning(false);
+            if (!isSilent) setIsScanning(false);
         }
     };
 
