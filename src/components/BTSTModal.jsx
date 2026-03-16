@@ -4,7 +4,8 @@ import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Z
 const BTSTModal = ({ stock, isOwned, onClose }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [liveData, setLiveData] = useState(null);
-    const [isLiveLoading, setIsLiveLoading] = useState(false);
+    const [investmentAmount, setInvestmentAmount] = useState(1000); // Default RM 1000
+    const [targetSellPrice, setTargetSellPrice] = useState(0);
 
     // Live Polling Effect
     useEffect(() => {
@@ -32,11 +33,25 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
         return () => clearInterval(interval);
     }, [stock]);
 
+    // Initialize target price once stock is loaded
+    useEffect(() => {
+        if (stock && targetSellPrice === 0) {
+            setTargetSellPrice(parseFloat((stock.close * 1.03).toFixed(3))); // Suggest +3%
+        }
+    }, [stock]);
+
     if (!stock) return null;
 
     const currentPrice = liveData?.close || stock.close;
     const currentChange = liveData?.plan?.analysis?.currentChangePercent || stock.changePercent;
     
+    // Simulation Calculations
+    const totalShares = Math.floor(investmentAmount / (currentPrice || 1) / 100) * 100;
+    const actualInvestment = totalShares * currentPrice;
+    const potentialRevenue = totalShares * targetSellPrice;
+    const potentialProfit = potentialRevenue - actualInvestment;
+    const potentialProfitPercent = ((targetSellPrice - currentPrice) / currentPrice) * 100;
+
     // Calculate P/L if owned
     const plPercent = currentPrice && stock.close ? ((currentPrice - stock.close) / stock.close) * 100 : 0;
     
@@ -52,7 +67,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                 body: JSON.stringify({
                     ticker: stock.ticker,
                     entryPrice: currentPrice,
-                    quantity: 0,
+                    quantity: totalShares,
                     type: 'BTST'
                 })
             });
@@ -123,7 +138,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                             </div>
                             <h2 className="text-3xl font-black tracking-tighter uppercase leading-tight">{stock.company}</h2>
                             <div className="flex items-center gap-3 mt-1">
-                                <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">{stock.ticker}</p>
+                                <p className="text-gray-500 font-bold uppercase tracking-widest text-xs tracking-tighter">{stock.ticker}</p>
                                 <a 
                                     href={`https://www.tradingview.com/chart/?symbol=MYX:${stock.ticker.split('.')[0]}`}
                                     target="_blank"
@@ -143,57 +158,75 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-6">
-                        <div className="bg-white/5 rounded-2xl p-4 border border-white/5 relative overflow-hidden group">
-                            <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                                <div className="w-1 h-1 rounded-full bg-rose-500 animate-ping"></div>
-                                Live Harga
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
+                            <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
+                                <div className="w-1 h-1 rounded-full bg-indigo-500 animate-ping"></div>
+                                Cadangan Entry
                             </div>
-                            <div className="text-xl font-black tracking-tighter tabular-nums">RM {currentPrice.toFixed(3)}</div>
-                            {isOwned && (
-                                <div className={`text-[10px] font-black mt-1 ${plPercent >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                    {plPercent >= 0 ? '▲' : '▼'} {Math.abs(plPercent).toFixed(2)}%
-                                </div>
-                            )}
+                            <div className="text-xl font-black text-white">RM {currentPrice.toFixed(3)}</div>
+                            <div className="text-[10px] text-indigo-400 font-bold mt-1">Sesuai beli sekarang</div>
                         </div>
-                        <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                            <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                                <TrendingUp className="w-3 h-3" />
-                                Perubahan
+                        <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
+                            <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
+                                <TrendingUp className="w-3 h-3 text-emerald-500" />
+                                Target Jual (BTST)
                             </div>
-                            <div className={`text-xl font-black tracking-tighter tabular-nums ${currentChange > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                {currentChange > 0 ? '+' : ''}{currentChange.toFixed(2)}%
-                            </div>
-                        </div>
-                        <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                            <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1.5">
-                                <BarChart3 className="w-3 h-3" />
-                                RVOL
-                            </div>
-                            <div className="text-xl font-black tracking-tighter tabular-nums">{stock.rvol}x</div>
+                            <div className="text-xl font-black text-emerald-500">RM {targetSellPrice.toFixed(3)}</div>
+                            <div className="text-[10px] text-gray-500 font-bold mt-1">Potensi +3.00% Profit</div>
                         </div>
                     </div>
                 </div>
 
-                <div className="p-8 pt-0 space-y-8">
-                    {/* Why this stock? */}
-                    <div>
-                        <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                            <Target className="w-3.5 h-3.5" />
-                            BTST Rationale
+                <div className="p-8 pt-0 space-y-6 overflow-y-auto max-h-[60vh]">
+                    {/* Investment Simulator */}
+                    <div className="bg-[#15151a] border border-white/5 rounded-3xl p-6 shadow-inner">
+                        <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                            <ShoppingCart className="w-3.5 h-3.5" />
+                            Simulasi Keuntungan BTST
                         </h4>
-                        <div className="flex flex-wrap gap-2">
-                            {stock.reasons.map((reason, i) => (
-                                <div key={i} className="flex items-center gap-2 bg-[#1a1a20] border border-white/10 px-4 py-2.5 rounded-2xl">
-                                    <CheckCircle2 className={`w-4 h-4 ${isOwned ? 'text-emerald-500' : 'text-indigo-500'}`} />
-                                    <span className="text-xs font-bold text-gray-300">{reason}</span>
+                        
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Modal Pelaburan (RM)</label>
+                                    <input 
+                                        type="number" 
+                                        value={investmentAmount}
+                                        onChange={(e) => setInvestmentAmount(Number(e.target.value))}
+                                        className="w-full bg-white/5 border border-white/10 text-white font-black px-4 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    />
                                 </div>
-                            ))}
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Target Jual (RM)</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.005"
+                                        value={targetSellPrice}
+                                        onChange={(e) => setTargetSellPrice(Number(e.target.value))}
+                                        className="w-full bg-white/5 border border-white/10 text-emerald-500 font-black px-4 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="bg-white/[0.02] rounded-2xl p-4 border border-white/5 space-y-3">
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-gray-500 font-bold uppercase tracking-tighter">Bilangan Saham (Units)</span>
+                                    <span className="text-white font-black">{totalShares.toLocaleString()} Units</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-gray-500 font-bold uppercase tracking-tighter text-indigo-400">Sasaran Untung (Estimasi)</span>
+                                    <div className="text-right">
+                                        <div className="text-emerald-500 font-black tracking-tight text-lg">+RM {potentialProfit.toFixed(2)}</div>
+                                        <div className="text-[9px] text-gray-500 font-bold">({potentialProfitPercent.toFixed(2)}% Gain)</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     {/* Coach's Trading Plan */}
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
                             <Star className="w-3.5 h-3.5 text-amber-400" />
                             Pelan Dagangan Coach
@@ -203,7 +236,6 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                             <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
                                 <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Setup Utama</div>
                                 <div className="text-sm font-black text-white flex items-center gap-2">
-                                    <TrendingUp className="w-4 h-4 text-indigo-400" />
                                     {stock.planType === 'Breakout' ? 'BREAKOUT (RBS Strategy)' : 'SUPPORT PLAY'}
                                 </div>
                             </div>
@@ -212,31 +244,24 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                     {stock.planType === 'Breakout' ? 'Aras RBS (Support Baru)' : 'Aras Support'}
                                 </div>
                                 <div className="text-sm font-black text-amber-400 tabular-nums">
-                                    RM {(stock.planType === 'Breakout' ? stock.rbsPrice : stock.supportPrice).toFixed(3)}
+                                    RM {stopLevel.toFixed(3)}
                                 </div>
                             </div>
                         </div>
 
-                        <div className={`rounded-2xl p-4 flex items-start gap-3 transition-all ${isAlertActive ? 'bg-rose-500/20 border border-rose-500/50' : 'bg-white/5 border border-white/5'}`}>
-                            {isAlertActive ? <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5 animate-pulse" /> : <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />}
+                        <div className={`rounded-2xl p-4 flex items-start gap-3 transition-all ${isAlertActive ? 'bg-rose-500/20 border border-rose-500/50 shadow-lg shadow-rose-900/20' : 'bg-rose-500/5 border border-rose-500/10'}`}>
+                            {isAlertActive ? <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5 animate-pulse" /> : <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
                             <div>
-                                <div className={`text-[9px] font-black uppercase tracking-widest mb-1 ${isAlertActive ? 'text-rose-500' : 'text-gray-500'}`}>
-                                    Aras Jagaan (Cut Loss)
-                                </div>
+                                <div className={`text-[9px] font-black uppercase tracking-widest mb-1 ${isAlertActive ? 'text-rose-500' : 'text-gray-500'}`}>Aras Cut Loss (Wajib)</div>
                                 <p className={`text-[11px] font-medium leading-relaxed ${isAlertActive ? 'text-white' : 'text-gray-400'}`}>
-                                    {isAlertActive 
-                                        ? `AMARAN: Harga sekarang (RM ${currentPrice.toFixed(3)}) berada di bawah paras selamat! Sila bertindak segera.`
-                                        : stock.planType === 'Breakout' 
-                                            ? `Aras Cut Loss adalah RM ${stock.rbsPrice.toFixed(3)} (RBS). Selagi di atas paras ini, pegangan masih selamat.` 
-                                            : `Aras Cut Loss adalah RM ${stock.supportPrice.toFixed(3)}. Lindungi modal jika paras ini ditembusi.`
-                                    }
+                                    {isAlertActive ? `HARGA KRITIKAL! Sekarang RM ${currentPrice.toFixed(3)}. Keluar segera untuk kurangkan kerugian.` : `Jika harga jatuh bawah RM ${stopLevel.toFixed(3)}, strategi BTST terbatal.`}
                                 </p>
                             </div>
                         </div>
                     </div>
 
                     {/* Action Guideline */}
-                    <div className={`rounded-[24px] p-5 border ${isOwned ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-indigo-500/5 border-indigo-500/10'}`}>
+                    <div className={`rounded-3xl p-5 border ${isOwned ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-indigo-500/5 border-indigo-500/10'}`}>
                         <div className="flex items-start gap-4">
                             <div className={`p-3 rounded-xl ${isOwned ? 'bg-emerald-500/20 text-emerald-500' : 'bg-indigo-500/20 text-indigo-500'}`}>
                                 <Clock className="w-5 h-5" />
@@ -256,7 +281,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="flex gap-4 pt-4">
+                    <div className="flex gap-4 pt-4 border-t border-white/5">
                         <button 
                             onClick={onClose}
                             className="flex-1 bg-white/5 hover:bg-white/10 text-white font-black text-[10px] uppercase tracking-widest py-4 rounded-2xl transition-all border border-white/5 active:scale-95"
@@ -267,7 +292,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                             <button 
                                 onClick={handleMarkSold}
                                 disabled={isSaving}
-                                className="flex-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest py-4 px-8 rounded-2xl transition-all shadow-lg shadow-rose-900/20 active:scale-95 disabled:opacity-50"
+                                className="flex-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest py-4 px-8 rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50"
                             >
                                 {isSaving ? 'Menyimpan...' : 'JUAL SEMUA POSISI'}
                             </button>
@@ -275,7 +300,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                             <button 
                                 onClick={handleMarkOwned}
                                 disabled={isSaving}
-                                className="flex-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] uppercase tracking-widest py-4 px-8 rounded-2xl transition-all shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+                                className="flex-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] uppercase tracking-widest py-4 px-8 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
                             >
                                 {isSaving ? 'Menyimpan...' : (
                                     <>
