@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star, AlertCircle, Info, Gavel, ShieldCheck, ChevronDown, ChevronUp, ArrowDown } from 'lucide-react';
+import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star, AlertCircle, Info, Gavel, ShieldCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp } from 'lucide-react';
 
 const BTSTModal = ({ stock, isOwned, onClose }) => {
     const [isSaving, setIsSaving] = useState(false);
@@ -79,6 +79,11 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
     // Alert logic based on Coach's Plan
     const stopLevel = stock.planType === 'Breakout' ? stock.rbsPrice : stock.supportPrice;
     const isAlertActive = currentPrice <= stopLevel;
+
+    // Entry and Live P/L Logic
+    const entryPrice = isOwned ? (stock.entry_price || stock.close) : stock.close;
+    const livePnL = (currentPrice - entryPrice) * totalShares;
+    const livePnLPercent = entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0;
 
     // determine Live Action Status
     const getActionStatus = () => {
@@ -288,6 +293,25 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                 <div className="h-full w-2/3 bg-gradient-to-r from-orange-500/20 to-emerald-500/20"></div>
                             </div>
                             
+                            {/* Entry Price Marker */}
+                            {(() => {
+                                const range = targetSellPrice - stopLevel;
+                                const entryProgress = ((entryPrice - stopLevel) / (range || 1)) * 100;
+                                const clampedEntry = Math.min(Math.max(entryProgress, -2), 102);
+
+                                return (
+                                    <div 
+                                        className="absolute h-full border-l-2 border-dashed border-white/40 z-10"
+                                        style={{ left: `${clampedEntry}%` }}
+                                    >
+                                        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                                            <ArrowUp className="w-3 h-3 text-white/50" />
+                                            <span className="text-[7px] font-black text-white/40 uppercase whitespace-nowrap">Entry RM {entryPrice.toFixed(3)}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                            
                             {/* Price Indicator Marker */}
                             {(() => {
                                 const range = targetSellPrice - stopLevel;
@@ -296,10 +320,14 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                 
                                 return (
                                     <div 
-                                        className="absolute top-1/2 -translate-y-1/2 transition-all duration-700 ease-out"
+                                        className="absolute top-1/2 -translate-y-1/2 transition-all duration-700 ease-out z-20"
                                         style={{ left: `${clampedProgress}%` }}
                                     >
                                         <div className="relative flex flex-col items-center">
+                                            {/* P/L Tooltip */}
+                                            <div className={`absolute -top-10 px-2 py-1 rounded-lg border text-[10px] font-black whitespace-nowrap shadow-xl transition-all ${livePnL >= 0 ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-500' : 'bg-rose-500/20 border-rose-500/50 text-rose-500'}`}>
+                                                {livePnL >= 0 ? '+' : ''}RM {livePnL.toFixed(2)} ({livePnLPercent.toFixed(2)}%)
+                                            </div>
                                             <div className={`w-4 h-4 rounded-full border-2 border-[#0f0f12] shadow-xl shadow-indigo-500/50 ${currentPrice <= stopLevel ? 'bg-rose-500' : currentPrice >= targetSellPrice ? 'bg-emerald-500' : 'bg-indigo-500'} animate-pulse`}></div>
                                             <ArrowDown className={`w-3 h-3 mt-1 ${currentPrice <= stopLevel ? 'text-rose-500' : currentPrice >= targetSellPrice ? 'text-emerald-500' : 'text-indigo-400'}`} />
                                         </div>
