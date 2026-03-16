@@ -338,14 +338,16 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                 
                                 return (
                                     <div className="absolute inset-0 flex rounded-full overflow-hidden">
-                                        {/* Danger Zone (Entry to SL) */}
+                                        {/* Danger Zone (SL to Entry) */}
                                         <div 
-                                            className="h-full bg-rose-500/10 border-r border-rose-500/30 transition-all duration-1000"
+                                            className="h-full bg-rose-500/15 border-r border-rose-500/30 transition-all duration-1000 relative group"
                                             style={{ width: `${Math.min(Math.max(entryProgress, 0), 100)}%` }}
-                                        ></div>
+                                        >
+                                            <div className="absolute inset-0 bg-rose-500/5 animate-pulse"></div>
+                                        </div>
                                         {/* Holding Zone (Entry to Target) */}
                                         <div 
-                                            className="h-full bg-amber-500/20 border-r border-emerald-500/30 transition-all duration-1000"
+                                            className="h-full bg-gradient-to-r from-amber-500/20 to-emerald-500/20 border-r border-emerald-500/30 transition-all duration-1000"
                                             style={{ width: `${Math.min(Math.max(100 - entryProgress, 0), 100)}%` }}
                                         ></div>
                                     </div>
@@ -395,10 +397,34 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                             })()}
                         </div>
                         
-                        <div className="flex justify-between mt-5">
-                            <span className="text-[8px] font-black text-rose-500/60 uppercase tracking-widest">Zon Cut Loss</span>
-                            <span className="text-[8px] font-black text-amber-500 uppercase tracking-[0.3em] bg-amber-500/10 px-3 py-0.5 rounded-full border border-amber-500/20">Zon Holding</span>
-                            <span className="text-[8px] font-black text-emerald-500/60 uppercase tracking-widest">Zon Profit</span>
+                        <div className="relative h-10 mt-2">
+                            {(() => {
+                                const range = targetSellPrice - stopLevel;
+                                const entryProgress = ((entryPriceToDisplay - stopLevel) / (range || 1)) * 100;
+                                
+                                return (
+                                    <>
+                                        {/* Dynamic Labels */}
+                                        <div 
+                                            className="absolute top-4 -translate-x-1/2 flex flex-col items-center"
+                                            style={{ left: `${entryProgress / 2}%` }}
+                                        >
+                                            <span className="text-[8px] font-black text-rose-500/60 uppercase tracking-widest whitespace-nowrap">Zon Cut Loss</span>
+                                        </div>
+
+                                        <div 
+                                            className="absolute top-4 -translate-x-1/2 flex flex-col items-center"
+                                            style={{ left: `${entryProgress + (100 - entryProgress) / 2}%` }}
+                                        >
+                                            <span className="text-[8px] font-black text-amber-500 uppercase tracking-[0.2em] bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20 whitespace-nowrap">Zon Holding</span>
+                                        </div>
+
+                                        <div className="absolute top-4 right-0 flex flex-col items-end">
+                                            <span className="text-[8px] font-black text-emerald-500/60 uppercase tracking-widest whitespace-nowrap">Zon Profit</span>
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>
