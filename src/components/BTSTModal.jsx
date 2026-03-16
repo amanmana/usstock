@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star, AlertCircle, Info, Gavel, ShieldCheck } from 'lucide-react';
+import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star, AlertCircle, Info, Gavel, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
 
 const BTSTModal = ({ stock, isOwned, onClose }) => {
     const [isSaving, setIsSaving] = useState(false);
@@ -7,6 +7,8 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
     const [investmentAmount, setInvestmentAmount] = useState(1000); // Default RM 1000
     const [targetSellPrice, setTargetSellPrice] = useState(0);
     const [isStillBtst, setIsStillBtst] = useState(true);
+    const [isSimulatorExpanded, setIsSimulatorExpanded] = useState(true);
+    const [isCoachPlanExpanded, setIsCoachPlanExpanded] = useState(true);
 
     // Live Polling Effect
     useEffect(() => {
@@ -251,84 +253,102 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
 
                 <div className="p-8 pt-0 space-y-6 overflow-y-auto max-h-[60vh]">
                     {/* Investment Simulator */}
-                    <div className="bg-[#15151a] border border-white/5 rounded-3xl p-6 shadow-inner">
-                        <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                            <ShoppingCart className="w-3.5 h-3.5" />
-                            Simulasi Keuntungan BTST
-                        </h4>
+                    <div className="bg-[#15151a] border border-white/5 rounded-3xl overflow-hidden shadow-inner">
+                        <button 
+                            onClick={() => setIsSimulatorExpanded(!isSimulatorExpanded)}
+                            className="w-full p-6 pb-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+                        >
+                            <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                <ShoppingCart className="w-3.5 h-3.5" />
+                                Simulasi Keuntungan BTST
+                            </h4>
+                            {isSimulatorExpanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                        </button>
                         
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Modal Pelaburan (RM)</label>
-                                    <input 
-                                        type="number" 
-                                        value={investmentAmount}
-                                        onChange={(e) => setInvestmentAmount(Number(e.target.value))}
-                                        className="w-full bg-white/5 border border-white/10 text-white font-black px-4 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    />
+                        {isSimulatorExpanded && (
+                            <div className="px-6 pb-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Modal Pelaburan (RM)</label>
+                                        <input 
+                                            type="number" 
+                                            value={investmentAmount}
+                                            onChange={(e) => setInvestmentAmount(Number(e.target.value))}
+                                            className="w-full bg-white/5 border border-white/10 text-white font-black px-4 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Target Jual (RM)</label>
+                                        <input 
+                                            type="number" 
+                                            step="0.005"
+                                            value={targetSellPrice}
+                                            onChange={(e) => setTargetSellPrice(Number(e.target.value))}
+                                            className="w-full bg-white/5 border border-white/10 text-emerald-500 font-black px-4 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                        />
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Target Jual (RM)</label>
-                                    <input 
-                                        type="number" 
-                                        step="0.005"
-                                        value={targetSellPrice}
-                                        onChange={(e) => setTargetSellPrice(Number(e.target.value))}
-                                        className="w-full bg-white/5 border border-white/10 text-emerald-500 font-black px-4 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                    />
-                                </div>
-                            </div>
 
-                            <div className="bg-white/[0.02] rounded-2xl p-4 border border-white/5 space-y-3">
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-gray-500 font-bold uppercase tracking-tighter">Bilangan Saham (Units)</span>
-                                    <span className="text-white font-black">{totalShares.toLocaleString()} Units</span>
-                                </div>
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-gray-500 font-bold uppercase tracking-tighter text-indigo-400">Sasaran Untung (Estimasi)</span>
-                                    <div className="text-right">
-                                        <div className="text-emerald-500 font-black tracking-tight text-lg">+RM {potentialProfit.toFixed(2)}</div>
-                                        <div className="text-[9px] text-gray-500 font-bold">({potentialProfitPercent.toFixed(2)}% Gain)</div>
+                                <div className="bg-white/[0.02] rounded-2xl p-4 border border-white/5 space-y-3">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-500 font-bold uppercase tracking-tighter">Bilangan Saham (Units)</span>
+                                        <span className="text-white font-black">{totalShares.toLocaleString()} Units</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-gray-500 font-bold uppercase tracking-tighter text-indigo-400">Sasaran Untung (Estimasi)</span>
+                                        <div className="text-right">
+                                            <div className="text-emerald-500 font-black tracking-tight text-lg">+RM {potentialProfit.toFixed(2)}</div>
+                                            <div className="text-[9px] text-gray-500 font-bold">({potentialProfitPercent.toFixed(2)}% Gain)</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Coach's Trading Plan */}
                     <div className="space-y-3">
-                        <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                            <Star className="w-3.5 h-3.5 text-amber-400" />
-                            Pelan Dagangan Coach
-                        </h4>
+                        <button 
+                            onClick={() => setIsCoachPlanExpanded(!isCoachPlanExpanded)}
+                            className="w-full flex items-center justify-between group"
+                        >
+                            <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2 group-hover:text-gray-400">
+                                <Star className="w-3.5 h-3.5 text-amber-400" />
+                                Pelan Dagangan Coach
+                            </h4>
+                            {isCoachPlanExpanded ? <ChevronUp className="w-4 h-4 text-gray-600" /> : <ChevronDown className="w-4 h-4 text-gray-600" />}
+                        </button>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
-                                <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Setup Utama</div>
-                                <div className="text-sm font-black text-white flex items-center gap-2">
-                                    {stock.planType === 'Breakout' ? 'BREAKOUT (RBS Strategy)' : 'SUPPORT PLAY'}
+                        {isCoachPlanExpanded && (
+                            <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
+                                        <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Setup Utama</div>
+                                        <div className="text-sm font-black text-white flex items-center gap-2">
+                                            {stock.planType === 'Breakout' ? 'BREAKOUT (RBS Strategy)' : 'SUPPORT PLAY'}
+                                        </div>
+                                    </div>
+                                    <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
+                                        <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">
+                                            {stock.planType === 'Breakout' ? 'Aras RBS (Support Baru)' : 'Aras Support'}
+                                        </div>
+                                        <div className="text-sm font-black text-amber-400 tabular-nums">
+                                            RM {stopLevel.toFixed(3)}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
-                                <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">
-                                    {stock.planType === 'Breakout' ? 'Aras RBS (Support Baru)' : 'Aras Support'}
-                                </div>
-                                <div className="text-sm font-black text-amber-400 tabular-nums">
-                                    RM {stopLevel.toFixed(3)}
-                                </div>
-                            </div>
-                        </div>
 
-                        <div className={`rounded-2xl p-4 flex items-start gap-3 transition-all ${isAlertActive ? 'bg-rose-500/20 border border-rose-500/50 shadow-lg shadow-rose-900/20' : 'bg-rose-500/5 border border-rose-500/10'}`}>
-                            {isAlertActive ? <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5 animate-pulse" /> : <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
-                            <div>
-                                <div className={`text-[9px] font-black uppercase tracking-widest mb-1 ${isAlertActive ? 'text-rose-500' : 'text-gray-500'}`}>Aras Cut Loss (Wajib)</div>
-                                <p className={`text-[11px] font-medium leading-relaxed ${isAlertActive ? 'text-white' : 'text-gray-400'}`}>
-                                    {isAlertActive ? `HARGA KRITIKAL! Sekarang RM ${currentPrice.toFixed(3)}. Keluar segera untuk kurangkan kerugian.` : `Jika harga jatuh bawah RM ${stopLevel.toFixed(3)}, strategi BTST terbatal.`}
-                                </p>
+                                <div className={`rounded-2xl p-4 flex items-start gap-3 transition-all ${isAlertActive ? 'bg-rose-500/20 border border-rose-500/50 shadow-lg shadow-rose-900/20' : 'bg-rose-500/5 border border-rose-500/10'}`}>
+                                    {isAlertActive ? <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5 animate-pulse" /> : <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
+                                    <div>
+                                        <div className={`text-[9px] font-black uppercase tracking-widest mb-1 ${isAlertActive ? 'text-rose-500' : 'text-gray-500'}`}>Aras Cut Loss (Wajib)</div>
+                                        <p className={`text-[11px] font-medium leading-relaxed ${isAlertActive ? 'text-white' : 'text-gray-400'}`}>
+                                            {isAlertActive ? `HARGA KRITIKAL! Sekarang RM ${currentPrice.toFixed(3)}. Keluar segera untuk kurangkan kerugian.` : `Jika harga jatuh bawah RM ${stopLevel.toFixed(3)}, strategi BTST terbatal.`}
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Live System Advice */}
