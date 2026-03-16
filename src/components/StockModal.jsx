@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, TrendingUp, TrendingDown, BarChart2, ExternalLink, Heart, CheckCircle, Loader2, Info, AlertOctagon, Activity, RefreshCw, Bell, BellOff, Zap, Target, Clock, Copy, Check } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, BarChart2, ExternalLink, Heart, CheckCircle, Loader2, Info, AlertOctagon, Activity, RefreshCw, Bell, BellOff, Zap, Target, Clock, Copy, Check, Maximize2, Minimize2 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import StockChart from './StockChart';
 import { PositionManager } from './PositionManager';
@@ -346,6 +346,7 @@ export function StockModal({
     const [isShariahUpdating, setIsShariahUpdating] = useState(false);
     const [showChart, setShowChart] = useState(false);
     const [copiedPlan, setCopiedPlan] = useState(false);
+    const [isChartZoomed, setIsChartZoomed] = useState(false);
 
     const fetchTradePlan = (ticker) => {
         if (!ticker) {
@@ -906,7 +907,7 @@ export function StockModal({
                                         <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Loading Chart Data...</span>
                                     </div>
                                 ) : (
-                                    <StockChart data={historyData} title="Price History (100D)" />
+                                    <StockChart data={historyData} actualEntry={pos?.entryPrice} title="Price History (100D)" />
                                 )}
                             </div>
 
@@ -929,6 +930,14 @@ export function StockModal({
                                             className={`px-3 py-1 rounded-lg text-[10px] font-black tracking-widest transition-all ${visualTimeframe === '4H' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'bg-white/5 text-gray-500 hover:text-gray-300'}`}
                                         >
                                             4H
+                                        </button>
+                                        <div className="w-px h-4 bg-white/10 mx-1"></div>
+                                        <button
+                                            onClick={() => setIsChartZoomed(true)}
+                                            className="p-1.5 rounded-lg bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-all active:scale-90"
+                                            title="Penuh Skrin"
+                                        >
+                                            <Maximize2 className="w-3.5 h-3.5" />
                                         </button>
                                     </div>
                                 </div>
@@ -956,6 +965,7 @@ export function StockModal({
                                         <StockChart
                                             data={visualTimeframe === '1D' ? historyData : historyData4h}
                                             plan={plan}
+                                            actualEntry={pos?.entryPrice}
                                             showLines={true}
                                             title={`${visualTimeframe} View + Trade Levels`}
                                         />
@@ -970,6 +980,12 @@ export function StockModal({
                                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
                                                 <span className="text-[8px] text-gray-500 font-black">TP</span>
                                             </div>
+                                            {pos && (
+                                                <div className="flex items-center gap-1">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+                                                    <span className="text-[8px] text-gray-500 font-black whitespace-nowrap">ENTRY</span>
+                                                </div>
+                                            )}
                                             <div className="flex items-center gap-1">
                                                 <div className="w-1.5 h-1.5 rounded-full bg-blue-400"></div>
                                                 <span className="text-[8px] text-gray-500 font-black whitespace-nowrap">RR 2.0</span>
@@ -1526,6 +1542,90 @@ export function StockModal({
                                 );
                             })()}
 
+
+                            {/* Zoomed Chart Overlay */}
+                            {isChartZoomed && (
+                                <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col p-6 md:p-12 animate-in fade-in zoom-in duration-300">
+                                    <div className="flex items-center justify-between mb-8">
+                                        <div className="flex flex-col">
+                                            <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                                                {plan.company_name} <span className="text-gray-500">({plan.ticker})</span>
+                                                <span className="px-3 py-1 rounded-full bg-primary/20 text-primary text-[10px] uppercase tracking-[0.2em] font-black border border-primary/20">
+                                                    Zoom Mode
+                                                </span>
+                                            </h2>
+                                            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-1">
+                                                {visualTimeframe} View • Trade Levels Analysis
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
+                                                <button
+                                                    onClick={() => setVisualTimeframe('1D')}
+                                                    className={`px-4 py-2 rounded-lg text-[10px] font-black tracking-[0.1em] transition-all ${visualTimeframe === '1D' ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-gray-500 hover:text-gray-300'}`}
+                                                >
+                                                    1D
+                                                </button>
+                                                <button
+                                                    onClick={() => setVisualTimeframe('4H')}
+                                                    className={`px-4 py-2 rounded-lg text-[10px] font-black tracking-[0.1em] transition-all ${visualTimeframe === '4H' ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-gray-500 hover:text-gray-300'}`}
+                                                >
+                                                    4H
+                                                </button>
+                                            </div>
+                                            <button
+                                                onClick={() => setIsChartZoomed(false)}
+                                                className="p-4 bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-2xl transition-all border border-white/5"
+                                            >
+                                                <Minimize2 className="w-6 h-6" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex-1 min-h-0 bg-surface/40 rounded-3xl border border-white/5 p-8 relative overflow-hidden flex flex-col">
+                                        {/* Background Glow */}
+                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-primary/5 blur-[120px] pointer-events-none"></div>
+
+                                        <div className="flex-1 w-full translate-y-2">
+                                            <StockChart
+                                                data={visualTimeframe === '1D' ? historyData : historyData4h}
+                                                plan={plan}
+                                                actualEntry={pos?.entryPrice}
+                                                showLines={true}
+                                                title={`${visualTimeframe} Analysis Full-Screen View`}
+                                            />
+                                        </div>
+
+                                        {/* Zoom Mode Legend */}
+                                        <div className="mt-8 flex items-center justify-center gap-12 bg-black/20 p-6 rounded-2xl border border-white/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                                                <span className="text-xs font-black text-emerald-400 uppercase tracking-widest">Target Profit (TP)</span>
+                                            </div>
+                                            {pos && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
+                                                    <span className="text-xs font-black text-amber-400 uppercase tracking-widest">Your Entry</span>
+                                                </div>
+                                            )}
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-3 h-3 rounded-full bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.5)]"></div>
+                                                <span className="text-xs font-black text-blue-400 uppercase tracking-widest">Queue Level (RR 2.0)</span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
+                                                <span className="text-xs font-black text-red-400 uppercase tracking-widest">Stop Loss (SL)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-6 flex justify-center">
+                                        <p className="text-[10px] text-gray-600 font-bold uppercase tracking-[0.3em] flex items-center gap-2">
+                                            <Activity className="w-3 h-3" /> Precision Trade Mapping System
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Smart Alert Section */}
                             {(plan.raw?.liveStock?.isMASupport || stock.isMASupport) && (

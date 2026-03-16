@@ -4,10 +4,11 @@ import React, { useMemo } from 'react';
  * Custom SVG Stock Chart with Trade Plan Overlays
  * @param {Array} data - Array of { date, close, volume }
  * @param {Object} plan - Trade plan object with levels { trade: { tp1, stopLoss, trailingStop } }
+ * @param {Number} actualEntry - Actual entry price for owned position
  * @param {Boolean} showLines - Whether to show TP/SL/TS lines
  * @param {String} title - Custom title for the card
  */
-const StockChart = ({ data, plan, showLines = false, title = "Price History (100D)" }) => {
+const StockChart = ({ data, plan, actualEntry, showLines = false, title = "Price History (100D)" }) => {
     if (!data || data.length < 2) return (
         <div className="h-48 flex items-center justify-center bg-surfaceHighlight/30 rounded-lg border border-border italic text-gray-500 text-xs">
             Data sejarah tidak mencukupi untuk carta.
@@ -39,6 +40,10 @@ const StockChart = ({ data, plan, showLines = false, title = "Price History (100
         if (plan.trade.queuePrice) levels.push(plan.trade.queuePrice);
     }
 
+    if (showLines && actualEntry) {
+        levels.push(actualEntry);
+    }
+
     const allYValues = [...prices, ...levels];
     const minP = Math.min(...allYValues) * 0.98;
     const maxP = Math.max(...allYValues) * 1.02;
@@ -60,6 +65,7 @@ const StockChart = ({ data, plan, showLines = false, title = "Price History (100
 
     const tradeLevels = [
         { label: 'TP', value: plan?.trade?.tp1, color: '#10b981', dash: '3,3' },
+        { label: 'ENTRY', value: actualEntry, color: '#f59e0b', dash: '3,1' },
         { label: 'RR 2.0', value: plan?.trade?.queuePrice, color: '#60a5fa', dash: '4,4' },
         { label: 'SL', value: plan?.trade?.stopLoss, color: '#ef4444', dash: '2,2' },
         { label: 'TS', value: plan?.trade?.trailingStop, color: '#6366f1', dash: '3,3' }
@@ -88,6 +94,11 @@ const StockChart = ({ data, plan, showLines = false, title = "Price History (100
                             <div className="flex items-center gap-0.5">
                                 <span className="text-emerald-400">TP</span>
                             </div>
+                            {actualEntry && (
+                                <div className="flex items-center gap-0.5">
+                                    <span className="text-amber-400">ENTRY</span>
+                                </div>
+                            )}
                             <div className="flex items-center gap-0.5">
                                 <span className="text-blue-400">RR</span>
                             </div>

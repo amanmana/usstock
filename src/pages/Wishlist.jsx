@@ -125,11 +125,20 @@ const WishlistPage = () => {
         setAnalyzedStocks(newAnalyzed);
     };
 
-    const clearAll = () => {
-        if (confirm('Padamkan semua calon dalam Wishlist?')) {
-            setWishlist([]);
-            setAnalyzedStocks({});
-            localStorage.removeItem('brs_wishlist');
+    const clearMarket = () => {
+        const type = marketTab === 'US' ? 'US' : 'Bursa';
+        if (confirm(`Padamkan semua calon ${type} dalam Wishlist?`)) {
+            const listToRemove = marketTab === 'US' ? usResults : bursaResults;
+            const tickersToRemove = listToRemove.map(s => s.ticker);
+
+            const newWishlist = wishlist.filter(t => !tickersToRemove.includes(t));
+            setWishlist(newWishlist);
+
+            const newAnalyzed = { ...analyzedStocks };
+            tickersToRemove.forEach(t => delete newAnalyzed[t]);
+            setAnalyzedStocks(newAnalyzed);
+
+            // If we're on a certain tab and it becomes empty, the persistent storage updates via useEffect
         }
     };
 
@@ -222,63 +231,85 @@ const WishlistPage = () => {
     return (
         <div className="min-h-screen bg-background text-text-primary font-sans p-6 md:p-12 pb-24">
             <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-                    <div>
-                        <button
-                            onClick={() => navigate('/')}
-                            className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors mb-4 group text-sm font-bold uppercase tracking-widest"
-                        >
-                            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                            Back to Market
-                        </button>
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-blue-500/10 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.1)]">
-                                <Star className="w-8 h-8 text-blue-500 fill-blue-500" />
-                            </div>
-                            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tighter text-white uppercase">
-                                Wishlist <span className="text-gray-500">Intraday</span>
-                            </h1>
-                        </div>
-                        <p className="text-gray-500 mt-2 font-medium">Fokus pada calon terbaik (Score 7-9) untuk tindakan pantas.</p>
-                    </div>
+                {/* Modern Header */}
+                <div className="mb-12">
+                    <button
+                        onClick={() => navigate('/')}
+                        className="flex items-center gap-2 text-gray-500 hover:text-white transition-all mb-6 group text-xs font-black uppercase tracking-[0.2em]"
+                    >
+                        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                        Back to Market
+                    </button>
 
-                    <div className="flex flex-wrap gap-3">
-                        <button
-                            onClick={() => addHybridStocks('US')}
-                            className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-full font-bold transition-all active:scale-95"
-                        >
-                            <Plus className="w-4 h-4 text-primary" />
-                            Add US Hybrid
-                        </button>
-                        <button
-                            onClick={() => addHybridStocks('Bursa')}
-                            className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-full font-bold transition-all active:scale-95"
-                        >
-                            <Plus className="w-4 h-4 text-emerald-500" />
-                            Add Bursa Hybrid
-                        </button>
-                        <div className="w-px h-10 bg-white/5 mx-1 hidden md:block"></div>
-                        <button
-                            onClick={clearAll}
-                            className="p-3 bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 rounded-full transition-all"
-                            title="Clear All"
-                        >
-                            <Trash2 className="w-5 h-5" />
-                        </button>
+                    <div className="flex items-center gap-6">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-blue-500 blur-2xl opacity-20 animate-pulse"></div>
+                            <div className="relative p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl shadow-2xl">
+                                <Star className="w-8 h-8 text-blue-500 fill-blue-500/20" />
+                            </div>
+                        </div>
+                        <div>
+                            <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-white uppercase leading-none">
+                                Wishlist <span className="text-gray-600">Intraday</span>
+                            </h1>
+                            <p className="text-gray-500 mt-2 font-bold text-sm tracking-wide italic">
+                                Fokus pada calon terbaik (Score 7-9) untuk tindakan pantas.
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                {/* Main Action Bar */}
-                <div className="flex flex-col lg:flex-row gap-6 mb-10">
-                    <div className="flex-1 bg-surfaceHighlight/20 p-6 rounded-[2rem] border border-border/50 flex flex-col md:flex-row items-center justify-between gap-6">
-                        <div className="flex items-center gap-4">
-                            <div className={`p-4 rounded-2xl ${isFiltering ? 'bg-primary/20 animate-pulse' : 'bg-primary/10'}`}>
-                                <Zap className={`w-6 h-6 ${isFiltering ? 'text-primary animate-bounce' : 'text-primary/50'}`} />
+                <div className="flex flex-col gap-8 mb-12">
+                    {/* Market Toggle & Actions Row */}
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="flex bg-surfaceHighlight/30 p-1.5 rounded-2xl border border-white/5 shadow-inner">
+                            <button
+                                onClick={() => setMarketTab('US')}
+                                className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${marketTab === 'US' ? 'bg-primary text-white shadow-[0_0_30px_rgba(59,130,246,0.5)]' : 'text-gray-500 hover:text-white'}`}
+                            >
+                                US Stock ({usResults.length})
+                            </button>
+                            <button
+                                onClick={() => setMarketTab('Bursa')}
+                                className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${marketTab === 'Bursa' ? 'bg-primary text-white shadow-[0_0_30px_rgba(59,130,246,0.5)]' : 'text-gray-500 hover:text-white'}`}
+                            >
+                                Bursa Stock ({bursaResults.length})
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => addHybridStocks(marketTab)}
+                                className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-2xl font-bold transition-all active:scale-95 group"
+                            >
+                                <Plus className={`w-4 h-4 transition-transform group-hover:rotate-90 ${marketTab === 'US' ? 'text-primary' : 'text-emerald-500'}`} />
+                                Add {marketTab} Hybrid
+                            </button>
+                            <div className="w-px h-8 bg-white/5 mx-1"></div>
+                            <button
+                                onClick={clearMarket}
+                                className="p-3 bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 rounded-2xl transition-all active:scale-95 shadow-lg shadow-red-500/5"
+                                title={`Clear ${marketTab} List`}
+                            >
+                                <Trash2 className="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Best of the Best Filter Section */}
+                    <div className="bg-surfaceHighlight/20 p-8 rounded-[2.5rem] border border-border/40 flex flex-col lg:flex-row items-center justify-between gap-8 backdrop-blur-sm relative overflow-hidden group shadow-2xl">
+                        {/* Decorative background element */}
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 transition-colors group-hover:bg-primary/10"></div>
+
+                        <div className="flex items-center gap-6 relative z-10">
+                            <div className={`p-5 rounded-[1.5rem] ${isFiltering ? 'bg-primary/20 animate-pulse ring-4 ring-primary/10' : 'bg-primary/10 transition-colors group-hover:bg-primary/15'}`}>
+                                <Zap className={`w-8 h-8 ${isFiltering ? 'text-primary animate-bounce' : 'text-primary/60 group-hover:text-primary'}`} />
                             </div>
                             <div>
-                                <h3 className="text-white font-bold text-lg leading-tight">Best of the Best</h3>
-                                <p className="text-xs text-gray-500 mt-1">Dapatkan harga & analisis terkini secara satu-persatu.</p>
+                                <h3 className="text-white font-black text-2xl tracking-tight">Best of the Best</h3>
+                                <p className="text-gray-400 mt-1 font-medium leading-relaxed max-w-md">
+                                    Dapatkan harga & analisis terkini satu-persatu untuk filter counter terbaik <span className="text-primary font-bold uppercase">{marketTab}</span>.
+                                </p>
                             </div>
                         </div>
 
@@ -286,20 +317,20 @@ const WishlistPage = () => {
                             onClick={runSequentialFilter}
                             disabled={isFiltering || activeResults.length === 0}
                             className={`
-                                flex items-center gap-3 px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-2xl
-                                ${isFiltering ? 'bg-gray-800 text-gray-600 cursor-wait' : 'bg-primary hover:bg-primary-hover text-white shadow-primary/20 active:scale-95'}
-                                ${activeResults.length === 0 ? 'opacity-50 grayscale cursor-not-allowed' : ''}
+                                relative z-10 flex items-center gap-4 px-12 py-5 rounded-2xl font-black text-base uppercase tracking-[0.1em] transition-all duration-300 shadow-2xl
+                                ${isFiltering ? 'bg-gray-800 text-gray-500 cursor-wait' : 'bg-primary hover:bg-primary/90 text-white shadow-primary/40 active:scale-[0.98] hover:-translate-y-1'}
+                                ${activeResults.length === 0 ? 'opacity-40 grayscale cursor-not-allowed' : ''}
                             `}
                         >
                             {isFiltering ? (
                                 <>
-                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                    Filtering... ({filteringTicker})
+                                    <Loader2 className="w-6 h-6 animate-spin" />
+                                    Filtering {marketTab}...
                                 </>
                             ) : (
                                 <>
-                                    <Activity className="w-5 h-5" />
-                                    Filter Best of the Best
+                                    <Activity className="w-6 h-6" />
+                                    Filter {marketTab} Now
                                 </>
                             )}
                         </button>
@@ -318,29 +349,15 @@ const WishlistPage = () => {
                         </p>
                     </div>
                 ) : (
-                    <div className="space-y-6 animate-in fade-in duration-700">
-                        <div className="flex items-center justify-between px-2">
-                            <div className="flex bg-surfaceHighlight/30 p-1 rounded-2xl border border-white/5">
-                                <button
-                                    onClick={() => setMarketTab('US')}
-                                    className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${marketTab === 'US' ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                                >
-                                    US ({usResults.length})
-                                </button>
-                                <button
-                                    onClick={() => setMarketTab('Bursa')}
-                                    className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${marketTab === 'Bursa' ? 'bg-primary text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
-                                >
-                                    Bursa ({bursaResults.length})
-                                </button>
-                            </div>
-
-                            {isFiltering && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-primary uppercase animate-pulse">Syncing Live Data...</span>
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        {isFiltering && (
+                            <div className="flex items-center justify-end px-4">
+                                <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full border border-primary/20">
+                                    <div className="w-2 h-2 bg-primary rounded-full animate-ping"></div>
+                                    <span className="text-[10px] font-black text-primary uppercase tracking-tighter">Syncing Live Data: {filteringTicker}</span>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
 
                         <ScreenerTable
                             data={activeResults}
