@@ -58,10 +58,13 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
     useEffect(() => {
         if (stock && targetSellPrice === 0) {
             // Use coach's formula: Target = MaxEntry * 1.025 (minticked)
+            const basePrice = stock.high || stock.close;
             const tick = stock.close < 1 ? 0.005 : (stock.close >= 1 && stock.close < 10 ? 0.01 : 0.02);
-            const maxEP = Math.round((stock.high - tick) / tick) * tick;
+            const maxEP = Math.round((basePrice - tick) / tick) * tick;
             const tp = Math.round((maxEP * 1.025) / tick) * tick;
-            setTargetSellPrice(parseFloat(tp.toFixed(3)));
+            if (!isNaN(tp)) {
+                setTargetSellPrice(parseFloat(tp.toFixed(3)));
+            }
         }
     }, [stock]);
 
@@ -81,8 +84,9 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
     const plPercent = currentPrice && stock.close ? ((currentPrice - stock.close) / stock.close) * 100 : 0;
     
     // Alert logic based on Coach's Plan (Use Max EP and CL from Engine)
+    const refHigh = stock.high || currentPrice;
     const tickVal = currentPrice < 1 ? 0.005 : (currentPrice >= 1 && currentPrice < 10 ? 0.01 : 0.02);
-    const maxEP = stock.maxEntry || Math.round((stock.high - tickVal) / tickVal) * tickVal;
+    const maxEP = stock.maxEntry || Math.round((refHigh - tickVal) / tickVal) * tickVal;
     const minEP = stock.minEntry || Math.round((maxEP * 0.975) / tickVal) * tickVal;
     const stopLevel = stock.stopLoss || Math.round((minEP - tickVal) / tickVal) * tickVal;
     const isAlertActive = currentPrice <= stopLevel;
