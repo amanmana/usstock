@@ -334,7 +334,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                             {/* Dynamic Zones Calculation */}
                             {(() => {
                                 const range = targetSellPrice - stopLevel;
-                                const entryProgress = ((entryPrice - stopLevel) / (range || 1)) * 100;
+                                const entryProgress = ((entryPriceToDisplay - stopLevel) / (range || 1)) * 100;
                                 
                                 return (
                                     <div className="absolute inset-0 flex rounded-full overflow-hidden">
@@ -355,7 +355,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                             {/* Entry Price Marker */}
                             {(() => {
                                 const range = targetSellPrice - stopLevel;
-                                const entryProgress = ((entryPrice - stopLevel) / (range || 1)) * 100;
+                                const entryProgress = ((entryPriceToDisplay - stopLevel) / (range || 1)) * 100;
                                 const clampedEntry = Math.min(Math.max(entryProgress, -2), 102);
 
                                 return (
@@ -365,7 +365,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                     >
                                         <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center">
                                             <ArrowUp className="w-3 h-3 text-white/50" />
-                                            <span className="text-[7px] font-black text-white/40 uppercase whitespace-nowrap">Entry RM {entryPrice.toFixed(3)}</span>
+                                            <span className="text-[7px] font-black text-white/40 uppercase whitespace-nowrap">Entry RM {entryPriceToDisplay.toFixed(3)}</span>
                                         </div>
                                     </div>
                                 );
