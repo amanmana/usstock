@@ -57,7 +57,11 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
     // Initialize target price once stock is loaded
     useEffect(() => {
         if (stock && targetSellPrice === 0) {
-            setTargetSellPrice(parseFloat((stock.close * 1.03).toFixed(3))); // Suggest +3%
+            // Use coach's formula: Target = MaxEntry * 1.025 (minticked)
+            const tick = stock.close < 1 ? 0.005 : (stock.close >= 1 && stock.close < 10 ? 0.01 : 0.02);
+            const maxEP = Math.round((stock.high - tick) / tick) * tick;
+            const tp = Math.round((maxEP * 1.025) / tick) * tick;
+            setTargetSellPrice(parseFloat(tp.toFixed(3)));
         }
     }, [stock]);
 
@@ -76,8 +80,11 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
     // Calculate P/L if owned
     const plPercent = currentPrice && stock.close ? ((currentPrice - stock.close) / stock.close) * 100 : 0;
     
-    // Alert logic based on Coach's Plan
-    const stopLevel = stock.planType === 'Breakout' ? stock.rbsPrice : stock.supportPrice;
+    // Alert logic based on Coach's Plan (Use Max EP and CL from Engine)
+    const tickVal = currentPrice < 1 ? 0.005 : (currentPrice >= 1 && currentPrice < 10 ? 0.01 : 0.02);
+    const maxEP = stock.maxEntry || Math.round((stock.high - tickVal) / tickVal) * tickVal;
+    const minEP = stock.minEntry || Math.round((maxEP * 0.975) / tickVal) * tickVal;
+    const stopLevel = stock.stopLoss || Math.round((minEP - tickVal) / tickVal) * tickVal;
     const isAlertActive = currentPrice <= stopLevel;
 
     // Entry and Live P/L Logic
@@ -240,9 +247,9 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                         <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
                             <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
                                 <div className="w-1 h-1 rounded-full bg-indigo-500 animate-ping"></div>
-                                Cadangan Entry
+                                Max Entry (EP)
                             </div>
-                            <div className="text-xl font-black text-white">RM {currentPrice.toFixed(3)}</div>
+                            <div className="text-xl font-black text-white">RM {maxEP.toFixed(3)}</div>
                             <div className="mt-2 flex items-center gap-2">
                                 <div className={`${actionStatus.color} ${actionStatus.glow} px-2 py-0.5 rounded-md flex items-center gap-1.5 shadow-lg`}>
                                     {actionStatus.icon}
@@ -251,17 +258,17 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                     </span>
                                 </div>
                                 <span className="text-[9px] text-gray-500 font-bold tracking-tight">
-                                    {actionStatus.text}
+                                    {currentPrice <= maxEP ? 'Dalam Zon EP' : 'Harga Dah Tinggi'}
                                 </span>
                             </div>
                         </div>
                         <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
                             <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
                                 <TrendingUp className="w-3 h-3 text-emerald-500" />
-                                Target Jual (BTST)
+                                Target Jual (TP)
                             </div>
                             <div className="text-xl font-black text-emerald-500">RM {targetSellPrice.toFixed(3)}</div>
-                            <div className="text-[10px] text-gray-500 font-bold mt-1">Potensi +3.00% Profit</div>
+                            <div className="text-[10px] text-gray-500 font-bold mt-1">Potensi +2.50% Reward</div>
                         </div>
                     </div>
 
@@ -269,7 +276,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                     <div className="mt-8 px-2">
                         <div className="flex justify-between items-end mb-2">
                             <div className="flex flex-col">
-                                <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Stop Loss</span>
+                                <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Cut Loss (CL)</span>
                                 <span className="text-xs font-black text-white">RM {stopLevel.toFixed(3)}</span>
                             </div>
                             <div className="flex flex-col items-center">
@@ -280,7 +287,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                 <span className="text-lg font-black text-white">RM {currentPrice.toFixed(3)}</span>
                             </div>
                             <div className="flex flex-col items-end">
-                                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Target Jual</span>
+                                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Target Profit (TP)</span>
                                 <span className="text-xs font-black text-white">RM {targetSellPrice.toFixed(3)}</span>
                             </div>
                         </div>
@@ -433,15 +440,15 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                     <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
                                         <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Setup Utama</div>
                                         <div className="text-sm font-black text-white flex items-center gap-2">
-                                            {stock.planType === 'Breakout' ? 'BREAKOUT (RBS Strategy)' : 'SUPPORT PLAY'}
+                                            Momentum BTST
                                         </div>
                                     </div>
                                     <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
                                         <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">
-                                            {stock.planType === 'Breakout' ? 'Aras RBS (Support Baru)' : 'Aras Support'}
+                                            Zon Entry Optimal
                                         </div>
                                         <div className="text-sm font-black text-amber-400 tabular-nums">
-                                            RM {stopLevel.toFixed(3)}
+                                            RM {minEP.toFixed(3)} - {maxEP.toFixed(3)}
                                         </div>
                                     </div>
                                 </div>

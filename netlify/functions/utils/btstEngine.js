@@ -1,7 +1,47 @@
 /**
  * BTST Engine
- * Specialized logic for Buy Today, Sell Tomorrow (BTST) signals.
+ * Integrated with Coach's Pine Script Strategy (accuracy focus).
  */
+
+/**
+ * Handles Bursa Malaysia price tick steps
+ */
+function mintick(price) {
+    let tick = 0.005;
+    if (price >= 1.00 && price < 10.00) tick = 0.01;
+    else if (price >= 10.00 && price < 100.00) tick = 0.02;
+    else if (price < 1.00) tick = 0.005;
+    else tick = 0.001; // default fallback
+
+    return Math.round(price / tick) * tick;
+}
+
+/**
+ * Simple RSI Calculation
+ */
+function calculateRSI(closes, period = 14) {
+    if (closes.length <= period) return 50;
+    
+    let gains = 0;
+    let losses = 0;
+
+    for (let i = closes.length - period; i < closes.length; i++) {
+        const diff = closes[i] - closes[i - 1];
+        if (diff >= 0) gains += diff;
+        else losses -= diff;
+    }
+
+    if (losses === 0) return 100;
+    const rs = gains / losses;
+    return 100 - (100 / (1 + rs));
+}
+
+function computeSMA(values, period) {
+    if (!values || values.length < period) return 0;
+    const slice = values.slice(-period);
+    const sum = slice.reduce((a, b) => a + (b || 0), 0);
+    return sum / period;
+}
 
 /**
  * Calculates BTST metrics and scores for a single stock.
@@ -12,92 +52,60 @@ export function calculateBtst(stockData) {
     const { prices } = stockData;
     const len = prices.length;
 
-    if (len < 5) return null; // Minimum 5 days for basic breakout check
+    if (len < 90) return null; // Need 90 days for full volume SMA checks
 
     const today = prices[len - 1];
-    const prev5Days = prices.slice(-6, -1);
+    const yesterday = prices[len - 2];
     const volumes = prices.map(p => Number(p.volume));
     const closes = prices.map(p => Number(p.close));
 
-    // 1. Close Near High (CNH)
-    // Formula: (Close - Low) / (High - Low) or Close >= 97% of High
-    const highLowRange = today.high - today.low;
-    const cpr = highLowRange === 0 ? 0.5 : (today.close - today.low) / highLowRange;
-    const isCloseNearHigh = today.close >= 0.97 * today.high;
+    // 1. Coach's Volume Filters (SMA 10, 30, 60, 90 > 500k)
+    const vma10 = computeSMA(volumes, 10);
+    const vma30 = computeSMA(volumes, 30);
+    const vma60 = computeSMA(volumes, 60);
+    const vma90 = computeSMA(volumes, 90);
+    const hasStrongVolumeBase = vma10 > 500000 && vma30 > 500000 && vma60 > 500000 && vma90 > 500000;
 
-    // 2. Relative Volume (RVOL)
-    // Formula: Volume today / Average volume last 20 days
-    const avgVol20 = computeSMA(volumes, 20) || computeSMA(volumes, len);
-    const rvol = avgVol20 > 0 ? today.volume / avgVol20 : 0;
-
-    // 3. Daily Momentum
-    const prevClose = prices[len - 2].close;
-    const dailyChangePercent = prevClose > 0 ? ((today.close - prevClose) / prevClose) * 100 : 0;
-
-    // 4. Value Traded (Liquidity)
-    const valueTraded = today.close * today.volume;
-
-    // 5. Breakout Check (Max High of last 5 days)
-    const highestHigh5D = Math.max(...prev5Days.map(p => p.high));
-    const lowestLow5D = Math.min(...prev5Days.map(p => p.low));
-    const isBreakout5D = today.close > highestHigh5D;
-
-    // 6. Trend Filter (Close > SMA20)
-    const sma20 = computeSMA(closes, 20);
-    const isAboveSMA20 = sma20 ? today.close > sma20 : true;
-
-    // SCORING (Maximum 9)
-    // ... rest of scoring logic stays similar but we'll use these levels for the plan
-    let score = 0;
-    const details = [];
-
-    // Scoring Criteria
-    if (isCloseNearHigh) {
-        score += 2;
-        details.push('Close Near High');
-    } else if (cpr > 0.8) {
-        score += 1;
-        details.push('Strong Close Position');
-    }
-
-    if (rvol >= 1.8) {
-        score += 2;
-        details.push('Volume Spike (High RVOL)');
-    } else if (rvol >= 1.2) {
-        score += 1;
-        details.push('Good Volume');
-    }
-
-    if (isBreakout5D) {
-        score += 2;
-        details.push('5-Day Breakout');
-    }
-
-    if (dailyChangePercent >= 3) {
-        score += 1;
-        details.push('Daily Bullish Momentum');
-    }
-
-    if (valueTraded >= 2000000) {
-        score += 1;
-        details.push('Healthy Liquidity');
-    }
-
-    if (isAboveSMA20) {
-        score += 1;
-        details.push('Short-term Uptrend');
-    }
-
-    // Coach's Trading Plan Logic
-    // RBS (Resistance Become Support) is the previous breakout level (highest high of 5 days)
-    // Support is the lowest low of 5 days or SMA20
-    const rbsPrice = parseFloat(highestHigh5D.toFixed(3));
-    const supportPrice = parseFloat((sma20 && sma20 < lowestLow5D ? sma20 : lowestLow5D).toFixed(3));
+    // 2. Momentum & RSI
+    const dailyChangePercent = yesterday.close > 0 ? ((today.close - yesterday.close) / yesterday.close) * 100 : 0;
+    const rsi14 = calculateRSI(closes, 14);
     
-    // Determine the type based on the strongest factor
-    let planType = 'Breakout';
-    if (today.close <= 1.05 * supportPrice && !isBreakout5D) {
-        planType = 'Support Play';
+    // 3. Coach's Levels Formulas (Based on High - tick)
+    const tick = today.close < 1 ? 0.005 : (today.close >= 1 && today.close < 10 ? 0.01 : 0.02);
+    const maxEP = mintick(today.high - tick);
+    const minEP = mintick(0.975 * maxEP); // RiskPerc defined by 2.5% in Pine Script
+    const targetProfit = mintick(1.025 * maxEP); // RewardPerc defined by 2.5% in Pine Script
+    const cutLoss = mintick(minEP - tick);
+
+    // 4. Scoring Logic (Max 9)
+    let score = 0;
+    const reasons = [];
+
+    // Criteria 1: Volume Base (The most important in this strategy)
+    if (hasStrongVolumeBase) {
+        score += 3;
+        reasons.push("Strong Multi-SMA Volume (>500k)");
+    }
+
+    // Criteria 2: Daily Momentum (Coach requires >= 4%)
+    if (dailyChangePercent >= 4) {
+        score += 3;
+        reasons.push("High Momentum (>4%)");
+    } else if (dailyChangePercent >= 2) {
+        score += 1;
+        reasons.push("Moderate Momentum");
+    }
+
+    // Criteria 3: RSI Control
+    if (rsi14 < 70) {
+        score += 2;
+        reasons.push("Safe RSI (<70)");
+    }
+
+    // Criteria 4: Close Position (Close within EP range)
+    if (today.close <= maxEP && today.close > cutLoss) {
+        score += 1;
+        reasons.push("Within Valid Entry Zone");
     }
 
     return {
@@ -105,22 +113,15 @@ export function calculateBtst(stockData) {
         company: stockData.company,
         close: today.close,
         changePercent: dailyChangePercent,
-        rvol: parseFloat(rvol.toFixed(2)),
-        valueTraded: Math.round(valueTraded),
-        isBreakout5D,
-        isCloseNearHigh,
+        rsi: parseFloat(rsi14.toFixed(2)),
         score,
-        reasons: details,
-        rbsPrice,
-        supportPrice,
-        planType,
+        reasons,
+        // Nomenclature from Pine Script
+        maxEntry: maxEP,
+        minEntry: minEP,
+        targetPrice: targetProfit,
+        stopLoss: cutLoss,
+        planType: 'Momentum BTST',
         lastUpdate: today.date
     };
-}
-
-function computeSMA(values, period) {
-    if (!values || values.length < period) return null;
-    const slice = values.slice(-period);
-    const sum = slice.reduce((a, b) => a + (b || 0), 0);
-    return sum / period;
 }
