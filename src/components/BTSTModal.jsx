@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star, AlertCircle, Info, Gavel, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star, AlertCircle, Info, Gavel, ShieldCheck, ChevronDown, ChevronUp, ArrowDown } from 'lucide-react';
 
 const BTSTModal = ({ stock, isOwned, onClose }) => {
     const [isSaving, setIsSaving] = useState(false);
@@ -247,6 +247,60 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                             </div>
                             <div className="text-xl font-black text-emerald-500">RM {targetSellPrice.toFixed(3)}</div>
                             <div className="text-[10px] text-gray-500 font-bold mt-1">Potensi +3.00% Profit</div>
+                        </div>
+                    </div>
+
+                    {/* Live Price Progress Bar */}
+                    <div className="mt-8 px-2">
+                        <div className="flex justify-between items-end mb-2">
+                            <div className="flex flex-col">
+                                <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Stop Loss</span>
+                                <span className="text-xs font-black text-white">RM {stopLevel.toFixed(3)}</span>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <div className="flex items-center gap-1.5 bg-white/5 px-2 py-0.5 rounded-full border border-white/10 mb-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
+                                    <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Harga Semasa</span>
+                                </div>
+                                <span className="text-lg font-black text-white">RM {currentPrice.toFixed(3)}</span>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Target Jual</span>
+                                <span className="text-xs font-black text-white">RM {targetSellPrice.toFixed(3)}</span>
+                            </div>
+                        </div>
+
+                        {/* The Actual Bar */}
+                        <div className="relative h-3 bg-white/5 rounded-full border border-white/5 overflow-visible">
+                            {/* Track Zones */}
+                            <div className="absolute inset-0 flex rounded-full overflow-hidden">
+                                <div className="h-full w-1/3 bg-gradient-to-r from-rose-500/20 to-orange-500/20 border-r border-white/5"></div>
+                                <div className="h-full w-2/3 bg-gradient-to-r from-orange-500/20 to-emerald-500/20"></div>
+                            </div>
+                            
+                            {/* Price Indicator Marker */}
+                            {(() => {
+                                const range = targetSellPrice - stopLevel;
+                                const progress = ((currentPrice - stopLevel) / (range || 1)) * 100;
+                                const clampedProgress = Math.min(Math.max(progress, -5), 105);
+                                
+                                return (
+                                    <div 
+                                        className="absolute top-1/2 -translate-y-1/2 transition-all duration-700 ease-out"
+                                        style={{ left: `${clampedProgress}%` }}
+                                    >
+                                        <div className="relative flex flex-col items-center">
+                                            <div className={`w-4 h-4 rounded-full border-2 border-[#0f0f12] shadow-xl shadow-indigo-500/50 ${currentPrice <= stopLevel ? 'bg-rose-500' : currentPrice >= targetSellPrice ? 'bg-emerald-500' : 'bg-indigo-500'} animate-pulse`}></div>
+                                            <ArrowDown className={`w-3 h-3 mt-1 ${currentPrice <= stopLevel ? 'text-rose-500' : currentPrice >= targetSellPrice ? 'text-emerald-500' : 'text-indigo-400'}`} />
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                        
+                        <div className="flex justify-between mt-2">
+                            <span className="text-[8px] font-bold text-gray-600 uppercase italic">Zon Bahaya</span>
+                            <span className="text-[8px] font-bold text-gray-600 uppercase italic">Zon Profit</span>
                         </div>
                     </div>
                 </div>
