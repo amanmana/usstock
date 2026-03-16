@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star, AlertCircle, Info, Gavel, ShieldCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp } from 'lucide-react';
+import { X, CheckCircle2, ShoppingCart, TrendingUp, TrendingDown, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star, AlertCircle, Info, Gavel, ShieldCheck, ChevronDown, ChevronUp, ArrowDown, ArrowUp } from 'lucide-react';
 
 const BTSTModal = ({ stock, isOwned, onClose }) => {
     const [isSaving, setIsSaving] = useState(false);
