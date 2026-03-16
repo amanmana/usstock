@@ -9,42 +9,50 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
     const [isStillBtst, setIsStillBtst] = useState(true);
     const [isSimulatorExpanded, setIsSimulatorExpanded] = useState(true);
     const [isCoachPlanExpanded, setIsCoachPlanExpanded] = useState(true);
+    const [refreshTimer, setRefreshTimer] = useState(10); // Countdown for next update
 
     // Live Polling Effect
     useEffect(() => {
         if (!stock) return;
 
-        const fetchLive = async () => {
+        const fetchData = async () => {
             try {
-                // Fetch latest price and analysis
-                const priceRes = await fetch('/.netlify/functions/getLatestPrices', {
-                    method: 'POST',
-                    body: JSON.stringify({ tickers: [stock.ticker] })
-                });
+                // ... fetch logic items ...
+                const [priceRes, btstRes] = await Promise.all([
+                    fetch(`/.netlify/functions/getLatestPrices?tickers=${stock.ticker}`),
+                    fetch(`/.netlify/functions/getBtstLatest`)
+                ]);
+                
                 if (priceRes.ok) {
                     const data = await priceRes.json();
-                    if (data && data.length > 0) {
-                        setLiveData(data[0]);
+                    if (data && data[stock.ticker]) {
+                        setLiveData(data[stock.ticker]);
+                        setRefreshTimer(10); // Reset timer on successful fetch
                     }
                 }
-
-                // Fetch current BTST candidates to see if still listed
-                const btstRes = await fetch('/.netlify/functions/getBtstLatest');
+                
                 if (btstRes.ok) {
                     const btstData = await btstRes.json();
-                    const currentCandidates = btstData.results || [];
-                    const stillHere = currentCandidates.find(s => s.ticker === stock.ticker);
-                    setIsStillBtst(!!stillHere);
+                    const stillInList = btstData.some(s => s.ticker === stock.ticker);
+                    setIsStillBtst(stillInList);
                 }
             } catch (err) {
-                console.error('Live fetch error:', err);
+                console.error("Live polling error:", err);
             }
         };
 
-        fetchLive(); // Initial fetch
-        const interval = setInterval(fetchLive, 10000); // Every 10s
+        fetchData();
+        const interval = setInterval(fetchData, 10000); // 10 seconds polling
         return () => clearInterval(interval);
-    }, [stock]);
+    }, [stock.ticker]);
+
+    // Timer Countdown Effect
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setRefreshTimer(prev => prev > 0 ? prev - 1 : 10);
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     // Initialize target price once stock is loaded
     useEffect(() => {
@@ -197,6 +205,8 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                 <div className="bg-white/5 text-gray-400 px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest border border-white/5 flex items-center gap-2">
                                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
                                     LIVE SCORE {stock.score}/9
+                                    <span className="text-white/20 px-1">|</span>
+                                    <span className="text-indigo-400 tabular-nums">RENEW IN {refreshTimer}S</span>
                                 </div>
                             </div>
                             <h2 className="text-3xl font-black tracking-tighter uppercase leading-tight">{stock.company}</h2>
