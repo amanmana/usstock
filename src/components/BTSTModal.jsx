@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star } from 'lucide-react';
+import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star, AlertCircle, Info } from 'lucide-react';
 
 const BTSTModal = ({ stock, isOwned, onClose }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [liveData, setLiveData] = useState(null);
     const [investmentAmount, setInvestmentAmount] = useState(1000); // Default RM 1000
     const [targetSellPrice, setTargetSellPrice] = useState(0);
+    const [isStillBtst, setIsStillBtst] = useState(true);
 
     // Live Polling Effect
     useEffect(() => {
@@ -13,15 +14,25 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
 
         const fetchLive = async () => {
             try {
-                const response = await fetch('/.netlify/functions/getLatestPrices', {
+                // Fetch latest price and analysis
+                const priceRes = await fetch('/.netlify/functions/getLatestPrices', {
                     method: 'POST',
                     body: JSON.stringify({ tickers: [stock.ticker] })
                 });
-                if (response.ok) {
-                    const data = await response.json();
+                if (priceRes.ok) {
+                    const data = await priceRes.json();
                     if (data && data.length > 0) {
                         setLiveData(data[0]);
                     }
+                }
+
+                // Fetch current BTST candidates to see if still listed
+                const btstRes = await fetch('/.netlify/functions/getBtstLatest');
+                if (btstRes.ok) {
+                    const btstData = await btstRes.json();
+                    const currentCandidates = btstData.results || [];
+                    const stillHere = currentCandidates.find(s => s.ticker === stock.ticker);
+                    setIsStillBtst(!!stillHere);
                 }
             } catch (err) {
                 console.error('Live fetch error:', err);
@@ -113,12 +124,25 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                 ${isAlertActive ? 'ring-2 ring-rose-500 shadow-rose-500/20' : ''}
             `}>
                 {/* Alert Banner for Aggressive Action */}
-                {isAlertActive && (
+                {isAlertActive && isStillBtst && (
                     <div className="bg-rose-600 px-6 py-2.5 flex items-center justify-center gap-2 animate-pulse">
                         <AlertCircle className="w-4 h-4 text-white" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-white">
                             Amaran: Harga Bawah Aras {stock.planType === 'Breakout' ? 'RBS' : 'Support'}!
                         </span>
+                    </div>
+                )}
+
+                {/* Dropped Banner */}
+                {!isStillBtst && !isOwned && (
+                    <div className="bg-amber-600 px-6 py-3 flex flex-col items-center justify-center gap-1">
+                        <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-white" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white">
+                                NOTA: Saham ini tidak lagi berada dalam senarai BTST
+                            </span>
+                        </div>
+                        <p className="text-[9px] text-white/80 font-bold">Imbasan terbaru menunjukkan saham ini tidak menepati kriteria skor tinggi.</p>
                     </div>
                 )}
 
@@ -260,22 +284,31 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                         </div>
                     </div>
 
-                    {/* Action Guideline */}
+                    {/* Live System Advice */}
                     <div className={`rounded-3xl p-5 border ${isOwned ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-indigo-500/5 border-indigo-500/10'}`}>
                         <div className="flex items-start gap-4">
                             <div className={`p-3 rounded-xl ${isOwned ? 'bg-emerald-500/20 text-emerald-500' : 'bg-indigo-500/20 text-indigo-500'}`}>
-                                <Clock className="w-5 h-5" />
+                                <Zap className="w-5 h-5" />
                             </div>
-                            <div>
-                                <h5 className={`text-xs font-black uppercase tracking-widest mb-1 ${isOwned ? 'text-emerald-500' : 'text-indigo-500'}`}>
-                                    {isOwned ? 'STRATEGI JUAL (MORNING)' : 'STRATEGI BELI (AFTERNOON)'}
-                                </h5>
-                                <p className="text-xs font-medium text-gray-400 leading-relaxed">
-                                    {isOwned 
-                                        ? 'Paling Lewat Jual: JAM 10:30 AM esok pagi. Fokus pada profit taking atau cut loss segera pada jam ini.' 
-                                        : 'Sasaran Beli: Masuk pada minit terakhir (4:50 PM - 4:55 PM) jika harga kekal di atas paras tumpuan.'
-                                    }
+                            <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                    <h5 className={`text-xs font-black uppercase tracking-widest ${isOwned ? 'text-emerald-500' : 'text-indigo-500'}`}>
+                                        SISTEM LIVE ADVICE
+                                    </h5>
+                                    <div className="flex items-center gap-1.5 opacity-60">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
+                                        <span className="text-[8px] font-black uppercase text-gray-400">Updating Live</span>
+                                    </div>
+                                </div>
+                                <p className="text-[12px] font-bold text-white leading-relaxed">
+                                    {liveData?.systemVerdictText || 'Analisa sedang dijana...'}
                                 </p>
+                                <div className="mt-2 flex items-center gap-2">
+                                    <Clock className="w-3 h-3 text-gray-500" />
+                                    <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">
+                                        {isOwned ? 'Paling lewat jual: 10:30 AM' : 'Waktu beli terbaik: 4:50 PM - 4:55 PM'}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
