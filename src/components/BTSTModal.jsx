@@ -72,7 +72,18 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                 </div>
                             </div>
                             <h2 className="text-3xl font-black tracking-tighter uppercase leading-tight">{stock.company}</h2>
-                            <p className="text-gray-500 font-bold uppercase tracking-widest text-xs mt-1">{stock.ticker}</p>
+                            <div className="flex items-center gap-3 mt-1">
+                                <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">{stock.ticker}</p>
+                                <a 
+                                    href={`https://www.tradingview.com/chart/?symbol=MYX:${stock.ticker.split('.')[0]}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border border-blue-500/20 transition-all flex items-center gap-1"
+                                >
+                                    <BarChart3 className="w-3 h-3" />
+                                    TradingView
+                                </a>
+                            </div>
                         </div>
                         <button 
                             onClick={onClose}
