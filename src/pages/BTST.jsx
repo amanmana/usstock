@@ -8,6 +8,7 @@ const BTST = () => {
     const [error, setError] = useState(null);
     const [selectedStock, setSelectedStock] = useState(null);
     const [ownedTickers, setOwnedTickers] = useState(new Set());
+    const [isScanning, setIsScanning] = useState(false);
 
     useEffect(() => {
         fetchLatestBTST();
@@ -16,7 +17,6 @@ const BTST = () => {
 
     const fetchLatestBTST = async () => {
         try {
-            setLoading(true);
             const response = await fetch('/.netlify/functions/getBtstLatest');
             const data = await response.json();
             setSnapshot(data);
@@ -44,7 +44,7 @@ const BTST = () => {
         if (!window.confirm('Mulakan imbasan BTST sekarang?')) return;
         
         try {
-            setLoading(true);
+            setIsScanning(true);
             const response = await fetch('/.netlify/functions/btstScan', { method: 'POST' });
             if (response.ok) {
                 await fetchLatestBTST();
@@ -54,7 +54,7 @@ const BTST = () => {
         } catch (err) {
             alert('Ralat semasa imbasan.');
         } finally {
-            setLoading(false);
+            setIsScanning(false);
         }
     };
 
@@ -69,9 +69,16 @@ const BTST = () => {
         );
     }
 
-    const { results = [], scan_date } = snapshot || {};
+    const { results = [], scan_date, created_at } = snapshot || {};
     const ownedBTST = results.filter(r => ownedTickers.has(r.ticker));
     const candidates = results.filter(r => !ownedTickers.has(r.ticker));
+
+    const formattedTime = created_at ? new Date(created_at).toLocaleTimeString('ms-MY', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true 
+    }) : '';
 
     return (
         <div className="min-h-screen bg-[#0a0a0c] text-white pb-24 px-4 md:px-8">
@@ -88,18 +95,35 @@ const BTST = () => {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-xs flex items-center gap-3">
-                        <Clock className="w-4 h-4 text-indigo-400" />
+                    <div className={`
+                        bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-xs flex items-center gap-3 transition-all
+                        ${isScanning ? 'ring-2 ring-indigo-500/50 bg-indigo-500/5 animate-pulse' : ''}
+                    `}>
+                        <Clock className={`w-4 h-4 text-indigo-400 ${isScanning ? 'animate-spin' : ''}`} />
                         <div>
                             <div className="text-gray-500 font-bold uppercase tracking-tighter">Imbasan Terakhir</div>
-                            <div className="text-white font-black">{scan_date || 'Tiada Data'}</div>
+                            <div className="text-white font-black flex items-center gap-2">
+                                <span>{scan_date || 'Tiada Data'}</span>
+                                {formattedTime && <span className="text-indigo-400/80 text-[10px] font-bold">{formattedTime}</span>}
+                            </div>
                         </div>
                     </div>
                     <button 
                         onClick={handleRunScan}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95 px-5"
+                        disabled={isScanning}
+                        className={`
+                            text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl transition-all shadow-lg active:scale-95 px-5 flex items-center gap-2
+                            ${isScanning 
+                                ? 'bg-indigo-800 cursor-not-allowed opacity-80' 
+                                : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20'}
+                        `}
                     >
-                        Imbas Sekarang
+                        {isScanning ? (
+                            <>
+                                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                Mengimbas...
+                            </>
+                        ) : 'Imbas Sekarang'}
                     </button>
                 </div>
             </header>
