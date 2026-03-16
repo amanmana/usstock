@@ -39,6 +39,7 @@ export function calculateBtst(stockData) {
 
     // 5. Breakout Check (Max High of last 5 days)
     const highestHigh5D = Math.max(...prev5Days.map(p => p.high));
+    const lowestLow5D = Math.min(...prev5Days.map(p => p.low));
     const isBreakout5D = today.close > highestHigh5D;
 
     // 6. Trend Filter (Close > SMA20)
@@ -46,6 +47,7 @@ export function calculateBtst(stockData) {
     const isAboveSMA20 = sma20 ? today.close > sma20 : true;
 
     // SCORING (Maximum 9)
+    // ... rest of scoring logic stays similar but we'll use these levels for the plan
     let score = 0;
     const details = [];
 
@@ -86,6 +88,18 @@ export function calculateBtst(stockData) {
         details.push('Short-term Uptrend');
     }
 
+    // Coach's Trading Plan Logic
+    // RBS (Resistance Become Support) is the previous breakout level (highest high of 5 days)
+    // Support is the lowest low of 5 days or SMA20
+    const rbsPrice = parseFloat(highestHigh5D.toFixed(3));
+    const supportPrice = parseFloat((sma20 && sma20 < lowestLow5D ? sma20 : lowestLow5D).toFixed(3));
+    
+    // Determine the type based on the strongest factor
+    let planType = 'Breakout';
+    if (today.close <= 1.05 * supportPrice && !isBreakout5D) {
+        planType = 'Support Play';
+    }
+
     return {
         ticker: stockData.code,
         company: stockData.company,
@@ -97,6 +111,9 @@ export function calculateBtst(stockData) {
         isCloseNearHigh,
         score,
         reasons: details,
+        rbsPrice,
+        supportPrice,
+        planType,
         lastUpdate: today.date
     };
 }

@@ -137,6 +137,45 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                         </div>
                     </div>
 
+                    {/* Coach's Trading Plan */}
+                    <div className="space-y-4">
+                        <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <Star className="w-3.5 h-3.5 text-amber-400" />
+                            Pelan Dagangan Coach
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
+                                <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">Setup Utama</div>
+                                <div className="text-sm font-black text-white flex items-center gap-2">
+                                    <TrendingUp className="w-4 h-4 text-indigo-400" />
+                                    {stock.planType === 'Breakout' ? 'BREAKOUT (RBS Strategy)' : 'SUPPORT PLAY'}
+                                </div>
+                            </div>
+                            <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
+                                <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">
+                                    {stock.planType === 'Breakout' ? 'Aras RBS (Support Baru)' : 'Aras Support'}
+                                </div>
+                                <div className="text-sm font-black text-amber-400 tabular-nums">
+                                    RM {stock.planType === 'Breakout' ? stock.rbsPrice : stock.supportPrice}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-rose-500/5 border border-rose-500/10 rounded-2xl p-4 flex items-start gap-3">
+                            <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                            <div>
+                                <div className="text-[9px] text-rose-500 font-black uppercase tracking-widest mb-1">Aras Cut Loss (Wajib)</div>
+                                <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
+                                    {stock.planType === 'Breakout' 
+                                        ? `Segera keluar jika harga jatuh di bawah RBS (RM ${stock.rbsPrice}). Fokus pada perlindungan modal.` 
+                                        : `Segera keluar jika harga bocor Support utama (RM ${stock.supportPrice}). Jangan sesekali simpan saham bocor support.`
+                                    }
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Action Guideline */}
                     <div className={`rounded-[24px] p-5 border ${isOwned ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-indigo-500/5 border-indigo-500/10'}`}>
                         <div className="flex items-start gap-4">
@@ -149,7 +188,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                 </h5>
                                 <p className="text-xs font-medium text-gray-400 leading-relaxed">
                                     {isOwned 
-                                        ? 'Fokus untuk exit sebelum jam 10:30 AM esok pagi. Pantau opening gap dan kekuatan volume pagi.' 
+                                        ? 'Paling Lewat Jual: JAM 10:30 AM esok pagi. Sebarang pergerakan selepas waktu ini adalah risiko tinggi untuk BTST.' 
                                         : 'Saham ini mempunyai momentum penutupan yang kuat. Masuk sebelum 4:55 PM untuk strategi Buy Today Sell Tomorrow.'
                                     }
                                 </p>
