@@ -7,6 +7,7 @@ const BTST = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedStock, setSelectedStock] = useState(null);
+    const [ownedTickers, setOwnedTickers] = useState(new Set());
     const [isScanning, setIsScanning] = useState(false);
     const [lastAutoUpdate, setLastAutoUpdate] = useState(null);
     const [nextUpdateIn, setNextUpdateIn] = useState(null);
