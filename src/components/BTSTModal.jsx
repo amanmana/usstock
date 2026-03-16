@@ -22,7 +22,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                 onClose();
             }
         } catch (err) {
-            alert('Ralat semasa menyimpan.');
+            console.error('Ralat semasa menyimpan:', err);
         } finally {
             setIsSaving(false);
         }
@@ -39,7 +39,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                 onClose();
             }
         } catch (err) {
-            alert('Ralat semasa membuang.');
+            console.error('Ralat semasa membuang:', err);
         } finally {
             setIsSaving(false);
         }
