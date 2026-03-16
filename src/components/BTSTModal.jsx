@@ -20,8 +20,6 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
             });
             if (response.ok) {
                 onClose();
-            } else {
-                alert('Gagal menyimpan posisi.');
             }
         } catch (err) {
             alert('Ralat semasa menyimpan.');
@@ -39,8 +37,6 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
             });
             if (response.ok) {
                 onClose();
-            } else {
-                alert('Gagal membuang posisi.');
             }
         } catch (err) {
             alert('Ralat semasa membuang.');

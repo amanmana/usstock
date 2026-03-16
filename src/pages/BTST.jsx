@@ -41,18 +41,14 @@ const BTST = () => {
     };
 
     const handleRunScan = async () => {
-        if (!window.confirm('Mulakan imbasan BTST sekarang?')) return;
-        
         try {
             setIsScanning(true);
             const response = await fetch('/.netlify/functions/btstScan', { method: 'POST' });
             if (response.ok) {
                 await fetchLatestBTST();
-            } else {
-                alert('Gagal menjalankan imbasan.');
             }
         } catch (err) {
-            alert('Ralat semasa imbasan.');
+            console.error('Ralat semasa imbasan:', err);
         } finally {
             setIsScanning(false);
         }
