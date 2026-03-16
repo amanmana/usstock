@@ -113,10 +113,10 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
             const response = await fetch('/.netlify/functions/savePosition', {
                 method: 'POST',
                 body: JSON.stringify({
-                    ticker: stock.ticker,
-                    entryPrice: currentPrice,
+                    ticker_full: stock.ticker,
+                    entry_price: currentPrice,
                     quantity: totalShares,
-                    type: 'BTST'
+                    strategy: 'BTST'
                 })
             });
             if (response.ok) {
@@ -134,7 +134,7 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
             setIsSaving(true);
             const response = await fetch('/.netlify/functions/removePosition', {
                 method: 'POST',
-                body: JSON.stringify({ ticker: stock.ticker })
+                body: JSON.stringify({ ticker_full: stock.ticker })
             });
             if (response.ok) {
                 onClose();
