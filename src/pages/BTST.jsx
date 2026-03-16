@@ -7,33 +7,39 @@ const BTST = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedStock, setSelectedStock] = useState(null);
-    const [ownedTickers, setOwnedTickers] = useState(new Set());
     const [isScanning, setIsScanning] = useState(false);
     const [lastAutoUpdate, setLastAutoUpdate] = useState(null);
+    const [nextUpdateIn, setNextUpdateIn] = useState(null);
 
     useEffect(() => {
         fetchLatestBTST();
         fetchOwnedPositions();
 
-        // Setup auto-refresh every 5 minutes during 3:30 PM - 5:00 PM
-        const interval = setInterval(() => {
+        // Timer for countdown visualization
+        const timerInterval = setInterval(() => {
             const now = new Date();
             const hour = now.getHours();
             const min = now.getMinutes();
-            const day = now.getDay(); // 1-5 (Mon-Fri)
-
-            // Bursa Time: 3:30 PM (15:30) to 5:00 PM (17:00)
+            const day = now.getDay();
             const isBursaOpen = day >= 1 && day <= 5;
             const isCloseWindow = (hour === 15 && min >= 30) || (hour === 16);
 
-            if (isBursaOpen && isCloseWindow) {
-                console.log('Auto-refreshing BTST scan...');
-                handleRunScan(true); // Run silent scan
+            if (isBursaOpen && isCloseWindow && lastAutoUpdate) {
+                const nextUpdate = new Date(lastAutoUpdate.getTime() + 3 * 60 * 1000);
+                const diff = Math.max(0, Math.floor((nextUpdate - now) / 1000));
+                setNextUpdateIn(diff);
+                
+                if (diff === 0 && !isScanning) {
+                    console.log('3-minute window reached. Auto-refreshing...');
+                    handleRunScan(true);
+                }
+            } else {
+                setNextUpdateIn(null);
             }
-        }, 5 * 60 * 1000); // 5 minutes
+        }, 1000);
 
-        return () => clearInterval(interval);
-    }, []);
+        return () => clearInterval(timerInterval);
+    }, [lastAutoUpdate, isScanning]);
 
     const fetchLatestBTST = async () => {
         try {
@@ -112,6 +118,14 @@ const BTST = () => {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    {nextUpdateIn !== null && (
+                        <div className="hidden lg:flex flex-col items-end mr-2">
+                            <div className="text-[9px] text-gray-600 font-black uppercase tracking-widest">Next Auto Sync In</div>
+                            <div className="text-indigo-400 font-black text-sm tabular-nums">
+                                {Math.floor(nextUpdateIn / 60)}:{(nextUpdateIn % 60).toString().padStart(2, '0')}
+                            </div>
+                        </div>
+                    )}
                     <div className={`
                         bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-xs flex items-center gap-3 transition-all
                         ${isScanning ? 'ring-2 ring-indigo-500/50 bg-indigo-500/5 animate-pulse' : ''}
