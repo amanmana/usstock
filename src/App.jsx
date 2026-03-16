@@ -10,6 +10,7 @@ import Footer from './components/Footer';
 
 import Wishlist from './pages/Wishlist';
 import StockManager from './pages/StockManager';
+import BTST from './pages/BTST';
 
 import Login from './pages/Login';
 
@@ -35,6 +36,7 @@ function App() {
                 <Route path="/tradelog" element={<TradeLog />} />
                 <Route path="/journal" element={<AdviceJournal />} />
                 <Route path="/wishlist" element={<Wishlist />} />
+                <Route path="/btst" element={<BTST />} />
                 <Route path="/stock-manager" element={<StockManager />} />
             </Routes>
             <Footer />
