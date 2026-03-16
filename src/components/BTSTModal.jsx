@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star, AlertCircle, Info } from 'lucide-react';
+import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star, AlertCircle, Info, Gavel, ShieldCheck } from 'lucide-react';
 
 const BTSTModal = ({ stock, isOwned, onClose }) => {
     const [isSaving, setIsSaving] = useState(false);
@@ -69,6 +69,43 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
     // Alert logic based on Coach's Plan
     const stopLevel = stock.planType === 'Breakout' ? stock.rbsPrice : stock.supportPrice;
     const isAlertActive = currentPrice <= stopLevel;
+
+    // determine Live Action Status
+    const getActionStatus = () => {
+        const now = new Date();
+        const hrs = now.getHours();
+        const mins = now.getMinutes();
+        const currentTimeVal = hrs * 100 + mins;
+
+        if (isOwned) {
+            if (currentTimeVal >= 900 && currentTimeVal <= 1030) {
+                return { label: 'SELL NOW', color: 'bg-rose-500', text: 'Waktu Puncak Jual BTST', icon: <Gavel className="w-3 h-3" />, glow: 'shadow-rose-500/50' };
+            }
+            return { label: 'HOLDING', color: 'bg-emerald-500', text: 'Pantau Paras Cut Loss', icon: <ShieldCheck className="w-3 h-3" />, glow: 'shadow-emerald-500/50' };
+        }
+
+        if (!isStillBtst) {
+            return { label: 'DROP/AVOID', color: 'bg-gray-600', text: 'Saham Terkeluar BTST', icon: <X className="w-3 h-3" />, glow: '' };
+        }
+
+        if (isAlertActive) {
+            return { label: 'AVOID', color: 'bg-rose-600', text: 'Harga Bawah Support', icon: <AlertCircle className="w-3 h-3" />, glow: 'shadow-rose-600/50' };
+        }
+
+        // BTST Buy Window (4:40 PM - 5:00 PM)
+        if (currentTimeVal >= 1640 && currentTimeVal <= 1700) {
+            return { label: 'BUY NOW !!!', color: 'bg-indigo-600', text: 'Momentum Penutupan Kuat', icon: <Zap className="w-3 h-3" />, glow: 'shadow-indigo-600/50 animate-pulse' };
+        }
+
+        // Monitoring Phase (After 3:30 PM but before 4:40 PM)
+        if (currentTimeVal >= 1530 && currentTimeVal < 1640) {
+            return { label: 'MONITORING', color: 'bg-amber-500', text: 'Tunggu Minit Akhir', icon: <Clock className="w-3 h-3" />, glow: 'shadow-amber-500/20' };
+        }
+
+        return { label: 'WAITING', color: 'bg-indigo-500/40', text: 'Belum Waktu BTST', icon: <Clock className="w-3 h-3" />, glow: '' };
+    };
+
+    const actionStatus = getActionStatus();
 
     const handleMarkOwned = async () => {
         try {
@@ -189,7 +226,17 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                 Cadangan Entry
                             </div>
                             <div className="text-xl font-black text-white">RM {currentPrice.toFixed(3)}</div>
-                            <div className="text-[10px] text-indigo-400 font-bold mt-1">Sesuai beli sekarang</div>
+                            <div className="mt-2 flex items-center gap-2">
+                                <div className={`${actionStatus.color} ${actionStatus.glow} px-2 py-0.5 rounded-md flex items-center gap-1.5 shadow-lg`}>
+                                    {actionStatus.icon}
+                                    <span className="text-[10px] font-black text-white uppercase tracking-tighter italic">
+                                        {actionStatus.label}
+                                    </span>
+                                </div>
+                                <span className="text-[9px] text-gray-500 font-bold tracking-tight">
+                                    {actionStatus.text}
+                                </span>
+                            </div>
                         </div>
                         <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
                             <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
