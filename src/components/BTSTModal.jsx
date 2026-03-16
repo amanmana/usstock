@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign } from 'lucide-react';
+import { X, CheckCircle2, ShoppingCart, TrendingUp, AlertTriangle, ArrowRight, Zap, Target, BarChart3, Clock, DollarSign, Star } from 'lucide-react';
 
 const BTSTModal = ({ stock, isOwned, onClose }) => {
     const [isSaving, setIsSaving] = useState(false);
