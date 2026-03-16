@@ -211,12 +211,20 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                 <div className={`p-8 pb-6 bg-gradient-to-b ${isOwned ? 'from-emerald-950/20' : 'from-indigo-950/20'} to-transparent`}>
                     <div className="flex justify-between items-start mb-6">
                         <div>
-                            <div className="flex items-center gap-2 mb-2">
+                            <div className="flex flex-wrap items-center gap-2 mb-3">
                                 <div className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest uppercase flex items-center gap-1.5 ${isOwned ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20'}`}>
                                     {isOwned ? <ShoppingCart className="w-3 h-3" /> : <Zap className="w-3 h-3" />}
                                     {isOwned ? 'Pegangan BTST' : 'Calon BTST'}
                                 </div>
-                                <div className="bg-white/5 text-gray-400 px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest border border-white/5 flex items-center gap-2">
+                                <div className={`${actionStatus.color} ${actionStatus.glow} px-3 py-1 rounded-full flex items-center gap-2 shadow-lg ring-1 ring-white/20`}>
+                                    {actionStatus.icon}
+                                    <span className="text-[10px] font-black text-white uppercase tracking-widest italic flex items-center gap-2">
+                                        {actionStatus.label}
+                                        <span className="w-1 h-1 rounded-full bg-white/40"></span>
+                                        <span className="normal-case font-bold opacity-90">{actionStatus.text}</span>
+                                    </span>
+                                </div>
+                                <div className="bg-white/5 text-gray-400 px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest border border-white/5 flex items-center gap-2 ml-auto lg:ml-0">
                                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
                                     LIVE SCORE {stock.score}/9
                                     <span className="text-white/20 px-1">|</span>
@@ -286,16 +294,8 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                     Max Entry (EP)
                                 </div>
                                 <div className="text-xl font-black text-white">RM {maxEP.toFixed(3)}</div>
-                                <div className="mt-2 flex items-center gap-2">
-                                    <div className={`${actionStatus.color} ${actionStatus.glow} px-2 py-0.5 rounded-md flex items-center gap-1.5 shadow-lg`}>
-                                        {actionStatus.icon}
-                                        <span className="text-[10px] font-black text-white uppercase tracking-tighter italic">
-                                            {actionStatus.label}
-                                        </span>
-                                    </div>
-                                    <span className="text-[9px] text-gray-500 font-bold tracking-tight">
-                                        {currentPrice <= maxEP ? 'Dalam Zon EP' : 'Harga Dah Tinggi'}
-                                    </span>
+                                <div className="mt-2 text-[9px] text-gray-500 font-bold tracking-tight bg-white/5 px-2 py-0.5 rounded-md w-fit">
+                                    {currentPrice <= maxEP ? 'ARAS ENTRY OPTIMAL' : 'ARAS BERISIKO (TINGGI)'}
                                 </div>
                             </div>
                             <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
