@@ -228,8 +228,16 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
                                     LIVE SCORE {stock.score}/9
                                     <span className="text-white/20 px-1">|</span>
-                                    <span className="text-indigo-400 tabular-nums">RENEW IN {refreshTimer}S</span>
+                                    <span className="text-indigo-400 tabular-nums uppercase">RSI: {stock.rsi}</span>
+                                    <span className="text-white/20 px-1">|</span>
+                                    <span className="text-white/40 tabular-nums">REFRESH IN {refreshTimer}S</span>
                                 </div>
+                                {stock.rsi > 70 && stock.rsi <= 80 && (
+                                    <div className="bg-orange-500/10 text-orange-400 px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest border border-orange-500/20 flex items-center gap-1.5 animate-pulse">
+                                        <AlertTriangle className="w-3 h-3" />
+                                        EXTREME MOMENTUM
+                                    </div>
+                                )}
                             </div>
                             <h2 className="text-3xl font-black tracking-tighter uppercase leading-tight">{stock.company}</h2>
                             <div className="flex items-center gap-3 mt-1">
@@ -253,61 +261,40 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                         </button>
                     </div>
 
-                    {isOwned ? (
-                        <div className="grid grid-cols-3 gap-3">
-                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
-                                <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
-                                    <TrendingUp className="w-3 h-3 text-indigo-500" />
-                                    Entry Price
-                                </div>
-                                <div className="text-lg font-black text-white">RM {entryPriceToDisplay.toFixed(3)}</div>
-                                <div className="text-[9px] text-gray-500 font-bold mt-1 uppercase tracking-tighter">
-                                    {sharesToDisplay.toLocaleString()} Units
-                                </div>
+                    {/* Unified Summary Cards (Both Owned & Candidate) */}
+                    <div className="grid grid-cols-3 gap-3">
+                        <div className={`bg-white/5 border border-white/5 p-4 rounded-2xl relative ${!isOwned ? 'ring-1 ring-white/10' : ''}`}>
+                            <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
+                                <TrendingUp className={`w-3 h-3 ${isOwned ? 'text-indigo-500' : 'text-gray-400'}`} />
+                                {isOwned ? 'Entry Price' : 'Entry (Simulasi)'}
+                                {!isOwned && <div className="w-1 h-1 rounded-full bg-indigo-500 animate-pulse"></div>}
                             </div>
-                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
-                                <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
-                                    <TrendingUp className="w-3 h-3 text-emerald-500" />
-                                    Target (TP)
-                                </div>
-                                <div className="text-lg font-black text-emerald-500">RM {targetSellPrice.toFixed(3)}</div>
-                                <div className="text-[9px] text-emerald-500/80 font-black mt-1">
-                                    +RM {profitAtTP.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </div>
-                            </div>
-                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
-                                <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
-                                    <TrendingDown className="w-3 h-3 text-rose-500" />
-                                    Cut Loss (CL)
-                                </div>
-                                <div className="text-lg font-black text-rose-500">RM {stopLevel.toFixed(3)}</div>
-                                <div className="text-[9px] text-rose-500/80 font-black mt-1">
-                                    -RM {Math.abs(lossAtCL).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </div>
+                            <div className="text-lg font-black text-white">RM {entryPriceToDisplay.toFixed(3)}</div>
+                            <div className="text-[9px] text-gray-400 font-bold mt-1 uppercase tracking-tighter">
+                                {sharesToDisplay.toLocaleString()} Units
                             </div>
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
-                                <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
-                                    <div className="w-1 h-1 rounded-full bg-indigo-500 animate-ping"></div>
-                                    Max Entry (EP)
-                                </div>
-                                <div className="text-xl font-black text-white">RM {maxEP.toFixed(3)}</div>
-                                <div className="mt-2 text-[9px] text-gray-500 font-bold tracking-tight bg-white/5 px-2 py-0.5 rounded-md w-fit">
-                                    {currentPrice <= maxEP ? 'ARAS ENTRY OPTIMAL' : 'ARAS BERISIKO (TINGGI)'}
-                                </div>
+                        <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
+                            <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
+                                <TrendingUp className="w-3 h-3 text-emerald-500" />
+                                Target (TP)
                             </div>
-                            <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
-                                <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
-                                    <TrendingUp className="w-3 h-3 text-emerald-500" />
-                                    Target Jual (TP)
-                                </div>
-                                <div className="text-xl font-black text-emerald-500">RM {targetSellPrice.toFixed(3)}</div>
-                                <div className="text-[10px] text-gray-500 font-bold mt-1">Potensi +2.50% Reward</div>
+                            <div className="text-lg font-black text-emerald-500">RM {targetSellPrice.toFixed(3)}</div>
+                            <div className="text-[9px] text-emerald-400 font-black mt-1">
+                                +RM {Math.max(0, profitAtTP).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                         </div>
-                    )}
+                        <div className="bg-white/5 border border-white/5 p-4 rounded-2xl relative">
+                            <div className="text-gray-500 text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-2">
+                                <TrendingDown className="w-3 h-3 text-rose-500" />
+                                Cut Loss (CL)
+                            </div>
+                            <div className="text-lg font-black text-rose-500">RM {stopLevel.toFixed(3)}</div>
+                            <div className="text-[9px] text-rose-400 font-black mt-1">
+                                -RM {Math.abs(lossAtCL).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Live Price Progress Bar */}
                     <div className="mt-8 px-2">
@@ -544,9 +531,9 @@ const BTSTModal = ({ stock, isOwned, onClose }) => {
                                     <h5 className={`text-xs font-black uppercase tracking-widest ${isOwned ? 'text-emerald-500' : 'text-indigo-500'}`}>
                                         SISTEM LIVE ADVICE
                                     </h5>
-                                    <div className="flex items-center gap-1.5 opacity-60">
+                                    <div className="flex items-center gap-1.5 opacity-60 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
                                         <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></div>
-                                        <span className="text-[8px] font-black uppercase text-gray-400">Updating Live</span>
+                                        <span className="text-[8px] font-black uppercase text-gray-400">Live Update in {refreshTimer}s</span>
                                     </div>
                                 </div>
                                 <p className="text-[12px] font-bold text-white leading-relaxed">

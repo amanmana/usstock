@@ -7,8 +7,9 @@ const BTST = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedStock, setSelectedStock] = useState(null);
-    const [ownedTickers, setOwnedTickers] = useState(new Set());
+    const [ownedPositions, setOwnedPositions] = useState(new Map()); // Maps ticker -> full position object
     const [isScanning, setIsScanning] = useState(false);
+    const [scanStatus, setScanStatus] = useState(null);
     const [lastAutoUpdate, setLastAutoUpdate] = useState(null);
     const [nextUpdateIn, setNextUpdateIn] = useState(null);
 
@@ -42,6 +43,29 @@ const BTST = () => {
         return () => clearInterval(timerInterval);
     }, [lastAutoUpdate, isScanning]);
 
+    // Polling for scan status
+    useEffect(() => {
+        let statusInterval;
+        if (isScanning) {
+            statusInterval = setInterval(async () => {
+                try {
+                    const statusRes = await fetch('/.netlify/functions/getScanStatus?id=btst_current');
+                    if (statusRes.ok) {
+                        const statusData = await statusRes.json();
+                        setScanStatus(statusData);
+                        if (statusData && statusData.status === 'idle') {
+                            setIsScanning(false);
+                            fetchLatestBTST();
+                        }
+                    }
+                } catch (e) {
+                    console.error("Status polling error:", e);
+                }
+            }, 2000);
+        }
+        return () => clearInterval(statusInterval);
+    }, [isScanning]);
+
     const fetchLatestBTST = async () => {
         try {
             const response = await fetch('/.netlify/functions/getBtstLatest');
@@ -60,8 +84,11 @@ const BTST = () => {
             const response = await fetch('/.netlify/functions/listPositions');
             if (response.ok) {
                 const data = await response.json();
-                const tickers = new Set(data.map(p => p.ticker_full || p.symbol));
-                setOwnedTickers(tickers);
+                const posMap = new Map();
+                data.forEach(p => {
+                    posMap.set(p.ticker_full || p.symbol, p);
+                });
+                setOwnedPositions(posMap);
             }
         } catch (err) {
             console.error('Error fetching positions:', err);
@@ -94,8 +121,13 @@ const BTST = () => {
     }
 
     const { results = [], scan_date, created_at } = snapshot || {};
-    const ownedBTST = results.filter(r => ownedTickers.has(r.ticker));
-    const candidates = results.filter(r => !ownedTickers.has(r.ticker));
+    const ownedBTST = results.filter(r => ownedPositions.has(r.ticker));
+    // Main candidates: score >= 4 and not owned
+    const candidates = results.filter(r => !ownedPositions.has(r.ticker) && r.score >= 4);
+    // Near-miss: score 2 or 3, not owned, take top 5
+    const nearMisses = results
+        .filter(r => !ownedPositions.has(r.ticker) && r.score >= 2 && r.score < 4)
+        .slice(0, 5);
 
     const formattedTime = created_at ? new Date(created_at).toLocaleTimeString('ms-MY', { 
         hour: '2-digit', 
@@ -140,23 +172,40 @@ const BTST = () => {
                             </div>
                         </div>
                     </div>
-                    <button 
-                        onClick={handleRunScan}
-                        disabled={isScanning}
-                        className={`
-                            text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl transition-all shadow-lg active:scale-95 px-5 flex items-center gap-2
-                            ${isScanning 
-                                ? 'bg-indigo-800 cursor-not-allowed opacity-80' 
-                                : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20'}
-                        `}
-                    >
-                        {isScanning ? (
-                            <>
-                                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                Mengimbas...
-                            </>
-                        ) : 'Imbas Sekarang'}
-                    </button>
+                    <div className="flex flex-col items-end gap-2">
+                        <button 
+                            onClick={() => handleRunScan()}
+                            disabled={isScanning}
+                            className={`
+                                text-white font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl transition-all shadow-lg active:scale-95 px-5 flex items-center gap-2
+                                ${isScanning 
+                                    ? 'bg-indigo-800 cursor-not-allowed opacity-80' 
+                                    : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-500/20'}
+                            `}
+                        >
+                            {isScanning ? (
+                                <>
+                                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    Mengimbas...
+                                </>
+                            ) : 'Imbas Sekarang'}
+                        </button>
+                        
+                        {isScanning && scanStatus && (
+                            <div className="w-48 space-y-1 animate-in fade-in duration-500">
+                                <div className="flex justify-between text-[8px] font-black text-indigo-400 uppercase tracking-widest">
+                                    <span>{scanStatus.message}</span>
+                                    <span>{Math.round((scanStatus.progress / scanStatus.total) * 100)}%</span>
+                                </div>
+                                <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-indigo-500 transition-all duration-500"
+                                        style={{ width: `${(scanStatus.progress / scanStatus.total) * 100}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </header>
 
@@ -191,7 +240,7 @@ const BTST = () => {
                         <Star className="w-5 h-5 text-indigo-400" />
                         <h2 className="text-lg font-black tracking-tight text-indigo-400 uppercase">Calon BTST Terbaik</h2>
                         <div className="bg-indigo-500/10 text-indigo-500 px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-widest border border-indigo-500/20">
-                            BUY BEFORE 4:55 PM
+                            SCORE &gt;= 4 &bull; BUY BEFORE 4:55 PM
                         </div>
                     </div>
 
@@ -210,19 +259,47 @@ const BTST = () => {
                     ) : (
                         <div className="bg-white/2 border border-dashed border-white/10 rounded-3xl p-12 text-center">
                             <Info className="w-12 h-12 text-gray-700 mx-auto mb-4" />
-                            <h3 className="text-xl font-bold text-gray-400">Tiada Calon BTST</h3>
+                            <h3 className="text-xl font-bold text-gray-400">Tiada Calon Utama</h3>
                             <p className="text-gray-600 max-w-md mx-auto mt-2">
-                                Tiada saham yang melepasi kriteria skor tinggi hari ini. Sila buat imbasan semula selepas 3:30 PM.
+                                Tiada saham yang melepasi kriteria skor tinggi (&gt;= 4) hari ini.
                             </p>
                         </div>
                     )}
                 </section>
+
+                {/* Near-Miss / Watchlist Section */}
+                {nearMisses.length > 0 && (
+                    <section className="pt-8 border-t border-white/5">
+                        <div className="flex items-center gap-3 mb-6">
+                            <Clock className="w-5 h-5 text-amber-500" />
+                            <h2 className="text-lg font-black tracking-tight text-amber-500 uppercase">Top 5 Zon Perhatian (Near-Miss)</h2>
+                            <div className="bg-amber-500/10 text-amber-500 px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-widest border border-amber-500/20">
+                                POTENSI PANTAU &bull; SKOR 2-3
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-80">
+                            {nearMisses.map((stock, idx) => (
+                                <StockCard 
+                                    key={stock.ticker} 
+                                    stock={stock} 
+                                    rank={idx + 1} 
+                                    isOwned={false} 
+                                    isNearMiss={true}
+                                    onClick={() => setSelectedStock(stock)}
+                                />
+                            ))}
+                        </div>
+                    </section>
+                )}
             </main>
 
             {selectedStock && (
                 <BTSTModal 
-                    stock={selectedStock} 
-                    isOwned={ownedTickers.has(selectedStock.ticker)} 
+                    stock={(() => {
+                        const pos = ownedPositions.get(selectedStock.ticker);
+                        return pos ? { ...selectedStock, ...pos } : selectedStock;
+                    })()} 
+                    isOwned={ownedPositions.has(selectedStock.ticker)} 
                     onClose={() => {
                         setSelectedStock(null);
                         fetchOwnedPositions();
@@ -233,21 +310,22 @@ const BTST = () => {
     );
 };
 
-const StockCard = ({ stock, rank, isOwned, onClick }) => {
+const StockCard = ({ stock, rank, isOwned, isNearMiss, onClick }) => {
     return (
         <div 
             onClick={onClick}
             className={`
                 group relative bg-[#121216] border border-white/5 rounded-2xl p-6 transition-all cursor-pointer overflow-hidden
-                hover:border-indigo-500/50 hover:bg-[#16161c] hover:-translate-y-1 active:scale-[0.98]
+                ${isNearMiss ? 'hover:border-amber-500/30' : 'hover:border-indigo-500/50'} 
+                hover:bg-[#16161c] hover:-translate-y-1 active:scale-[0.98]
             `}
         >
             {/* Background Glow */}
-            <div className={`absolute -right-12 -top-12 w-24 h-24 blur-[60px] opacity-20 pointer-events-none group-hover:opacity-40 transition-opacity ${isOwned ? 'bg-emerald-500' : 'bg-indigo-500'}`}></div>
+            <div className={`absolute -right-12 -top-12 w-24 h-24 blur-[60px] opacity-20 pointer-events-none group-hover:opacity-40 transition-opacity ${isOwned ? 'bg-emerald-500' : isNearMiss ? 'bg-amber-500' : 'bg-indigo-500'}`}></div>
 
             <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${isOwned ? 'bg-emerald-500/10 text-emerald-500' : 'bg-indigo-500/10 text-indigo-500'}`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${isOwned ? 'bg-emerald-500/10 text-emerald-500' : isNearMiss ? 'bg-amber-500/10 text-amber-500' : 'bg-indigo-500/10 text-indigo-500'}`}>
                         #{rank}
                     </div>
                     <div>
@@ -271,13 +349,16 @@ const StockCard = ({ stock, rank, isOwned, onClick }) => {
                 {/* Score Bar */}
                 <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                     <div 
-                        className={`h-full rounded-full transition-all duration-700 ${isOwned ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
+                        className={`h-full rounded-full transition-all duration-700 ${isOwned ? 'bg-emerald-500' : isNearMiss ? 'bg-amber-500' : 'bg-indigo-500'}`} 
                         style={{ width: `${(stock.score / 9) * 100}%` }}
                     ></div>
                 </div>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-1.5">
+                {isNearMiss && (
+                    <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded">WATCHLIST</span>
+                )}
                 {stock.isBreakout5D && (
                     <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded">BREAKOUT</span>
                 )}

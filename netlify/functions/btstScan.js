@@ -18,7 +18,17 @@ export const handler = async (event, context) => {
 
         const tickerList = stocks.map(s => s.ticker_full);
         const limitDate = new Date();
-        limitDate.setDate(limitDate.getDate() - 40); // Need enough days for SMA20 + stats
+        limitDate.setDate(limitDate.getDate() - 40);
+
+        // Update status: Initializing
+        await supabase.from('scan_status').upsert({
+            id: 'btst_current',
+            status: 'running',
+            progress: 0,
+            total: stocks.length,
+            message: 'Memuatkan data harga...',
+            updated_at: new Date().toISOString()
+        });
 
         // 2. Fetch prices in bulk
         const { data: allPrices, error: priceError } = await supabase
@@ -45,7 +55,19 @@ export const handler = async (event, context) => {
 
         // 3. Process BTST
         const results = [];
+        let processedCount = 0;
+
         for (const stock of stocks) {
+            processedCount++;
+            
+            // Update progress every 20 stocks to avoid database spam
+            if (processedCount % 20 === 0 || processedCount === stocks.length) {
+                await supabase.from('scan_status').update({
+                    progress: processedCount,
+                    message: `Menganalisa ${processedCount}/${stocks.length} saham...`
+                }).eq('id', 'btst_current');
+            }
+
             const prices = priceMap[stock.ticker_full];
             if (!prices || prices.length < 5) continue;
 
@@ -55,7 +77,7 @@ export const handler = async (event, context) => {
                 prices: prices
             });
 
-            if (btstResult && btstResult.score >= 4) { // Minimum score threshold to be listed
+            if (btstResult && btstResult.score >= 2) {
                 results.push(btstResult);
             }
         }
@@ -67,7 +89,10 @@ export const handler = async (event, context) => {
         });
 
         // 4. Save Snapshot
-        const today = new Date().toISOString().split('T')[0];
+        // Use Malaysia Time (UTC+8) for the scan_date calculation
+        const now = new Date();
+        const myTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+        const today = myTime.toISOString().split('T')[0];
         
         const { error: upsertError } = await supabase
             .from('btst_snapshots')
@@ -78,6 +103,13 @@ export const handler = async (event, context) => {
             }, { onConflict: 'scan_date' });
 
         if (upsertError) throw upsertError;
+
+        // Update status: Complete
+        await supabase.from('scan_status').update({
+            status: 'idle',
+            message: `Selesai! ${results.length} calon dijumpai.`,
+            updated_at: new Date().toISOString()
+        }).eq('id', 'btst_current');
 
         return {
             statusCode: 200,

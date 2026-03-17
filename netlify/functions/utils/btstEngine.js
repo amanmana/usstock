@@ -96,10 +96,15 @@ export function calculateBtst(stockData) {
         reasons.push("Moderate Momentum");
     }
 
-    // Criteria 3: RSI Control
+    // Criteria 3: RSI Control (Allow up to 80 for strong BTST candidates)
     if (rsi14 < 70) {
         score += 2;
-        reasons.push("Safe RSI (<70)");
+        reasons.push("Healthy RSI (<70)");
+    } else if (rsi14 <= 80) {
+        score += 2;
+        reasons.push("Extreme Momentum (RSI 70-80)");
+    } else {
+        reasons.push("Overextended RSI (>80)");
     }
 
     // Criteria 4: Close Position (Close within EP range)

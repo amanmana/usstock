@@ -182,17 +182,25 @@ const StockChart = ({ data, plan, actualEntry, showLines = false, title = "Price
                             const d = new Date(item.date || item.timestamp * 1000);
                             if (isNaN(d.getTime())) return "";
 
-                            // Check if it's intraday data (typically has timestamps or same-day dates)
                             const isIntraday = !!item.timestamp;
+                            
+                            // Check if chart spans multiple days
+                            const spanMs = (last?.timestamp || new Date(last?.date).getTime()) - (first?.timestamp || new Date(first?.date).getTime());
+                            const spansMultipleDays = spanMs > 24 * 60 * 60 * 1000;
 
                             if (isIntraday) {
-                                return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                                const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                                if (spansMultipleDays) {
+                                    const dateStr = d.toLocaleDateString([], { day: '2-digit', month: 'short' });
+                                    return `${dateStr} ${timeStr}`;
+                                }
+                                return timeStr;
                             }
                             return d.toLocaleDateString([], { day: '2-digit', month: 'short' });
                         };
 
                         return (
-                            <g className="fill-gray-500 text-[7px] font-bold uppercase tracking-tighter">
+                            <g className="fill-gray-500 text-[6px] font-bold uppercase tracking-tighter">
                                 <text x={margin.left} y={height - 2} textAnchor="start">{formatDate(first)}</text>
                                 <text x={margin.left + (width - margin.left - margin.right) / 2} y={height - 2} textAnchor="middle">{formatDate(mid)}</text>
                                 <text x={width - margin.right} y={height - 2} textAnchor="end">{formatDate(last)}</text>
