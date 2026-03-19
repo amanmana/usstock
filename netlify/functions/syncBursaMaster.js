@@ -74,6 +74,16 @@ export const handler = async (event, context) => {
             /INVERSE ETF/i,
         ];
 
+        // Ticker Overrides — keyed by SHORT NAME (alpha code) to handle
+        // cases where The Star uses alpha codes but Yahoo Finance needs numeric.
+        // These are PERMANENT overrides — update here if Bursa changes codes.
+        const TICKER_OVERRIDES_BY_SHORT = {
+            'MHB': { tc: '5186', yfFull: '5186.KL', cn: 'MALAYSIA MARINE AND HEAVY ENG' },
+            'KSL': { tc: '0168', yfFull: '0168.KL', cn: 'KSL HOLDINGS BHD' },
+            'SOP': { tc: '5126', yfFull: '5126.KL', cn: 'SARAWAK OIL PALMS BHD' },
+            'YFG': { tc: '7293', yfFull: '7293.KL', cn: 'YFG BHD' },
+        };
+
         const upserts = [];
         let skipped = 0;
         let added = 0;
@@ -127,19 +137,9 @@ export const handler = async (event, context) => {
             const tickerCode = parsedCode.trim();
             const tickerShort = shortName?.trim() || tickerCode;
 
-            // Format ticker_full as "TICKERCODE.KL" for Yahoo Finance compatibility
+            // Format ticker_full as "TICKERCODE.KL" for Yahoo Finance compatibility.
             // This prevents duplicate entries with different alpha-based symbols.
             const tickerFull = `${tickerCode}.KL`;
-
-            // Ticker Overrides — keyed by SHORT NAME (alpha code) to handle
-            // cases where The Star uses alpha codes but Yahoo Finance needs numeric.
-            // These are PERMANENT overrides — update here if Bursa changes codes.
-            const TICKER_OVERRIDES_BY_SHORT = {
-                'MHB': { tc: '5186', yfFull: '5186.KL', cn: 'MALAYSIA MARINE AND HEAVY ENG' },
-                'KSL': { tc: '0168', yfFull: '0168.KL', cn: 'KSL HOLDINGS BHD' },
-                'SOP': { tc: '5126', yfFull: '5126.KL', cn: 'SARAWAK OIL PALMS BHD' },
-                'YFG': { tc: '7293', yfFull: '7293.KL', cn: 'YFG BHD' },
-            };
 
             const override = TICKER_OVERRIDES_BY_SHORT[tickerShort];
             const finalTickerCode = override?.tc || tickerCode;
@@ -173,14 +173,10 @@ export const handler = async (event, context) => {
         // IMPORTANT: Split into "locked" (override tickers) vs "normal" upserts.
         // Locked tickers must NOT have their ticker_code overwritten by sync data,
         // because their numeric code was manually corrected in DB.
-        const LOCKED_TICKERS = new Set(Object.keys(TICKER_OVERRIDES_BY_SHORT));
+        const LOCKED_SHORT_NAMES = new Set(Object.keys(TICKER_OVERRIDES_BY_SHORT));
 
-        // Wait — TICKER_OVERRIDES_BY_SHORT is defined inside the loop above.
-        // Re-define here for use in upsert split:
-        const OVERRIDE_SHORT_NAMES = new Set(['MHB', 'KSL', 'SOP', 'YFG']);
-
-        const lockedUpserts = upserts.filter(u => OVERRIDE_SHORT_NAMES.has(u.short_name));
-        const normalUpserts = upserts.filter(u => !OVERRIDE_SHORT_NAMES.has(u.short_name));
+        const lockedUpserts = upserts.filter(u => LOCKED_SHORT_NAMES.has(u.short_name));
+        const normalUpserts = upserts.filter(u => !LOCKED_SHORT_NAMES.has(u.short_name));
 
         const chunkSize = 200;
         let successCount = 0;

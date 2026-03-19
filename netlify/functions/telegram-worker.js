@@ -100,7 +100,16 @@ export const handler = async (event) => {
                 }
 
                 // --- SIGNAL GO ALERT ---
-                if (item.alert_go && currentVerdict === "GO" && item.last_alert_status !== "GO") {
+                const isToday = (dateString) => {
+                    if (!dateString) return false;
+                    const d = new Date(dateString);
+                    const now = new Date();
+                    return d.getDate() === now.getDate() && 
+                           d.getMonth() === now.getMonth() && 
+                           d.getFullYear() === now.getFullYear();
+                };
+
+                if (item.alert_go && currentVerdict === "GO" && item.last_alert_status !== "GO" && !isToday(item.last_alert_at)) {
                     console.log(`ALERT: ${ticker} hit GO!`);
                     const company = item.klse_stocks?.company_name || ticker;
                     const currency = item.market === 'MYR' || item.market === 'KLSE' ? 'RM' : '$';
@@ -110,15 +119,17 @@ export const handler = async (event) => {
                         `🛡️ *Stop*: ${currency} ${result.levels.stopPrice.toFixed(3)}\n` +
                         `📊 *Score*: ${score.toFixed(1)}\n` +
                         `⚖️ *RR Ratio*: ${rr.toFixed(2)}\n\n` +
-                        `🔗 [View Screener](${process.env.URL || 'https://usstock.netlify.app'})`;
+                        `🔗 [View Screener](${process.env.URL || 'https://us-stock-screener-amanmana.netlify.app'})`;
 
                     await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, { chat_id: chatId, text: message, parse_mode: 'Markdown' });
+                    // Store that we sent an alert today
+                    await supabase.from('favourites').update({ last_alert_at: new Date().toISOString() }).eq('ticker_full', ticker);
                 }
 
                 // --- TARGET PRICE (TP) ALERT ---
                 if (item.alert_tp && pos && pos.target_price > 0 && currentPrice >= pos.target_price) {
-                    // Only alert if we haven't alerted for this price yet (or if price has reset)
-                    if (item.last_tp_price !== currentPrice) {
+                    // Only alert if we haven't alerted today for TP
+                    if (!isToday(item.last_alert_at) || item.last_alert_status !== "TP_HIT") {
                         const company = item.klse_stocks?.company_name || ticker;
                         const currency = item.market === 'MYR' || item.market === 'KLSE' ? 'RM' : '$';
                         console.log(`ALERT: ${ticker} hit TP!`);
@@ -130,13 +141,17 @@ export const handler = async (event) => {
                             `🎉 Masa yang tepat untuk tuai hasil!`;
 
                         await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, { chat_id: chatId, text: message, parse_mode: 'Markdown' });
-                        await supabase.from('favourites').update({ last_tp_price: currentPrice }).eq('ticker_full', ticker);
+                        await supabase.from('favourites').update({ 
+                            last_tp_price: currentPrice,
+                            last_alert_at: new Date().toISOString(),
+                            last_alert_status: "TP_HIT"
+                        }).eq('ticker_full', ticker);
                     }
                 }
 
                 // --- STOP LOSS (SL) ALERT ---
                 if (item.alert_sl && pos && pos.stop_loss > 0 && currentPrice <= pos.stop_loss) {
-                    if (item.last_sl_price !== currentPrice) {
+                    if (!isToday(item.last_alert_at) || item.last_alert_status !== "SL_HIT") {
                         const company = item.klse_stocks?.company_name || ticker;
                         const currency = item.market === 'MYR' || item.market === 'KLSE' ? 'RM' : '$';
                         console.log(`ALERT: ${ticker} hit SL!`);
@@ -148,11 +163,15 @@ export const handler = async (event) => {
                             `⚠️ Disiplin adalah kunci. Kawal risiko anda.`;
 
                         await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, { chat_id: chatId, text: message, parse_mode: 'Markdown' });
-                        await supabase.from('favourites').update({ last_sl_price: currentPrice }).eq('ticker_full', ticker);
+                        await supabase.from('favourites').update({ 
+                            last_sl_price: currentPrice,
+                            last_alert_at: new Date().toISOString(),
+                            last_alert_status: "SL_HIT"
+                        }).eq('ticker_full', ticker);
                     }
                 }
 
-                // Update last_alert_status
+                // Update last_alert_status if it changed
                 if (currentVerdict !== item.last_alert_status) {
                     await supabase.from('favourites').update({ last_alert_status: currentVerdict }).eq('ticker_full', ticker);
                 }
